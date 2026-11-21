@@ -1,6 +1,7 @@
 package com.kyubang.kakaofocus;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -14,6 +15,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends Activity {
     private final EditText[] inputs = new EditText[RoomStore.ROOM_COUNT];
@@ -70,6 +73,10 @@ public class MainActivity extends Activity {
             addWithTop(layout, edit, 12);
         }
 
+        Button pick = button("📋 감지된 톡방에서 선택하기");
+        addWithTop(layout, pick, 6);
+        pick.setOnClickListener(v -> showRecentPicker());
+
         Button save = button("채팅방 3개 저장");
         addWithTop(layout, save, 16);
         save.setOnClickListener(v -> saveRooms());
@@ -83,6 +90,7 @@ public class MainActivity extends Activity {
         addWithTop(layout, text("최근 확인된 카톡 알림 제목", 16, true), 24);
         titlesView = text("", 13, false);
         addWithTop(layout, titlesView, 8);
+        titlesView.setOnClickListener(v -> showRecentPicker());
 
         addWithTop(layout, text(
                 "알림 숫자는 현재 휴대폰에 남아 있는 알림 기준의 추정치예요. "
@@ -98,10 +106,47 @@ public class MainActivity extends Activity {
         renderStatus();
     }
 
+    private void showRecentPicker() {
+        List<String> recent = RoomStore.observedTitles(this);
+        if (recent.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("아직 감지된 톡방이 없어")
+                    .setMessage("알림 접근 권한을 켠 뒤 카카오톡 알림을 한 번 받으면 이름이 표시돼. 지금은 직접 입력해도 돼.")
+                    .setPositiveButton("확인", null)
+                    .show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("등록할 톡방 이름 선택")
+                .setItems(recent.toArray(new String[0]), (d, selectedIndex) -> {
+                    String selectedName = recent.get(selectedIndex);
+                    String[] slots = {"1번 칸에 등록", "2번 칸에 등록", "3번 칸에 등록"};
+                    new AlertDialog.Builder(this)
+                            .setTitle(selectedName)
+                            .setItems(slots, (d2, slot) -> {
+                                inputs[slot].setText(selectedName);
+                                Toast.makeText(this,
+                                        (slot + 1) + "번에 입력했어. 저장 버튼까지 눌러줘!",
+                                        Toast.LENGTH_LONG).show();
+                            })
+                            .setNegativeButton("취소", null)
+                            .show();
+                })
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
     private void saveRooms() {
         String[] rooms = new String[RoomStore.ROOM_COUNT];
         for (int i = 0; i < rooms.length; i++) {
             rooms[i] = inputs[i].getText().toString().trim();
+        }
+        Set<String> duplicates = new HashSet<>();
+        for (String name : rooms) {
+            if (!name.isEmpty() && !duplicates.add(name)) {
+                Toast.makeText(this, "같은 톡방을 중복 등록할 수 없어.", Toast.LENGTH_LONG).show();
+                return;
+            }
         }
         RoomStore.saveRooms(this, rooms);
         NotificationWatcher.refreshConfiguredRooms();
@@ -137,7 +182,8 @@ public class MainActivity extends Activity {
         } else {
             StringBuilder titles = new StringBuilder();
             for (String title : recent) titles.append("• ").append(title).append("\n");
-            titlesView.setText(titles.toString().trim());
+            titlesView.setText("이름을 누르거나 위의 선택 버튼으로 등록할 수 있어.\n\n"
+                    + titles.toString().trim());
         }
     }
 
