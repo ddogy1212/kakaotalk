@@ -66,7 +66,7 @@ final class CropImageView extends View {
         invalidate();
     }
 
-    void setRotation(float angle) {
+    void setPhotoAngle(float angle) {
         degrees = angle;
         invalidate();
     }
