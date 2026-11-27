@@ -19,6 +19,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -45,7 +46,9 @@ public final class MainActivity extends Activity {
     private LinearLayout roomsPanel, widgetsPanel, focusPanel;
     private Button roomsTab, widgetsTab, focusTab;
     private Spinner roomCount;
-    private TextView statusView, previewView, titlesView, pauseStatus, minutesLabel;
+    private TextView statusView, previewDay, titlesView, pauseStatus, minutesLabel;
+    private FrameLayout previewView;
+    private LinearLayout previewPositioner, previewRows;
     private ImageView pausePreview;
 
     @Override protected void onCreate(Bundle state) {
@@ -181,9 +184,25 @@ public final class MainActivity extends Activity {
         addWithTop(widgetsPanel, text("1×1 알림 위젯은 사진 없이 기존 디자인으로 표시돼.", 13, false), 16);
 
         addWithTop(widgetsPanel, text("2×1 위젯 미리보기", 16, true), 19);
-        previewView = text("", 12, false);
-        previewView.setPadding(dp(14), dp(12), dp(14), dp(12));
-        addWithTop(widgetsPanel, previewView, 8);
+        // Use the same layered structure as the actual 2x1 widget:
+        // room rows as a centered group, D-day as an independent top-right label.
+        previewView = new FrameLayout(this);
+        previewPositioner = new LinearLayout(this);
+        previewPositioner.setGravity(Gravity.CENTER);
+        previewRows = new LinearLayout(this);
+        previewRows.setOrientation(LinearLayout.VERTICAL);
+        previewRows.setGravity(Gravity.CENTER_HORIZONTAL);
+        previewPositioner.addView(previewRows, new LinearLayout.LayoutParams(-2, -2));
+        previewView.addView(previewPositioner,
+                new FrameLayout.LayoutParams(-1, -1));
+        previewDay = text("", 7, false);
+        previewDay.setTextSize(5.5f);
+        previewDay.setSingleLine(true);
+        previewView.addView(previewDay,
+                new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END));
+        LinearLayout.LayoutParams previewBox = new LinearLayout.LayoutParams(-1, dp(122));
+        previewBox.topMargin = dp(8);
+        widgetsPanel.addView(previewView, previewBox);
         addWithTop(widgetsPanel, text("수능 D-day는 2×1에만 표시되며, 2027년 11월 18일을 기준으로 해.", 12, false), 8);
 
         addWithTop(widgetsPanel, text("💾 설정 백업 · 복원", 18, true), 22);
@@ -371,24 +390,43 @@ public final class MainActivity extends Activity {
     }
 
     private void renderPreview() {
-        if (previewView == null) return;
+        if (previewView == null || previewRows == null || previewDay == null) return;
         int theme = RoomStore.theme(this);
-        previewView.setBackground(round(theme == 1 ? Color.WHITE
-                : theme == 2 ? Color.rgb(91, 84, 99) : Color.rgb(42, 36, 48), 14));
-        previewView.setTextColor(theme == 1 ? INK : Color.WHITE);
-        previewView.setTextSize(9f + RoomStore.fontScale(this));
-        previewView.setGravity(Gravity.CENTER_VERTICAL | WidgetUpdater.horizontalGravity(this));
+        int background = theme == 1 ? Color.rgb(255, 249, 252)
+                : theme == 2 ? Color.argb(179, 26, 23, 33)
+                : Color.rgb(41, 36, 47);
+        int ink = theme == 1 ? INK : Color.rgb(240, 235, 243);
+        int muted = theme == 1 ? MUTED : Color.rgb(183, 174, 190);
+        int accent = theme == 1 ? Color.rgb(177, 43, 105)
+                : Color.rgb(255, 182, 220);
+        previewView.setBackground(round(background, 15));
         int side = dp(WidgetUpdater.insetDp(this));
-        previewView.setPadding(side, dp(9), side, dp(9));
-        StringBuilder preview = new StringBuilder(ExamDay.label());
+        previewView.setPadding(side, dp(3), side, dp(3));
+        int alignment = Gravity.CENTER_VERTICAL | WidgetUpdater.horizontalGravity(this);
+        previewPositioner.setGravity(alignment);
+        previewRows.setGravity(alignment);
+        previewRows.removeAllViews();
+
+        previewDay.setText(ExamDay.label());
+        previewDay.setTextColor(accent);
+        previewDay.setTextSize(5.5f);
         for (int i = 0; i < RoomStore.activeRooms(this); i++) {
             String name = RoomStore.name(this, i);
-            if (name.isEmpty()) name = (i + 1) + "번 톡방 미등록";
-            preview.append("\n").append(name).append("  ");
-            preview.append(WidgetUpdater.hasAccess(this) && NotificationWatcher.isConnected()
-                    ? WidgetUpdater.countAndTime(this, i) : "연결 확인");
+            boolean missing = name.isEmpty();
+            if (missing) name = (i + 1) + "번 톡방 등록";
+            int count = RoomStore.count(this, i);
+            String status = missing ? "" : !WidgetUpdater.hasAccess(this)
+                    ? "권한 필요" : !NotificationWatcher.isConnected()
+                    ? "연결 확인" : WidgetUpdater.countAndTime(this, i);
+            TextView line = text(name + (status.isEmpty() ? "" : " " + status),
+                    9 + RoomStore.fontScale(this), false);
+            line.setTextColor(missing ? muted : count > 0 ? accent : ink);
+            line.setGravity(alignment);
+            line.setSingleLine(true);
+            line.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            line.setIncludeFontPadding(false);
+            previewRows.addView(line, new LinearLayout.LayoutParams(-2, -2));
         }
-        previewView.setText(preview.toString());
     }
 
     private void updateTitles() {
