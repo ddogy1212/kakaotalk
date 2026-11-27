@@ -666,21 +666,21 @@ public final class MainActivity extends Activity {
         List<RoomStore.Conversation> recent = RoomStore.recentConversations(this);
         boolean granted = WidgetUpdater.hasAccess(this);
         StringBuilder b = new StringBuilder();
-        b.append("알림 접근: ").append(granted ? "허용" : "허용 필요").append("\\n")
+        b.append("알림 접근: ").append(granted ? "허용" : "허용 필요").append("\n")
                 .append("감지 서비스: ").append(NotificationWatcher.isConnected()
-                        ? "연결됨" : "연결 대기").append("\\n")
-                .append("최근 식별된 대화: ").append(recent.size()).append("개\\n\\n");
+                        ? "연결됨" : "연결 대기").append("\n")
+                .append("최근 식별된 대화: ").append(recent.size()).append("개\n\n");
         for (int i = 0; i < RoomStore.activeRooms(this); i++)
             b.append(i + 1).append(". ").append(RoomStore.name(this, i))
                     .append(" → ").append(RoomStore.count(this, i)).append("개")
                     .append(RoomStore.boundConversation(this, i).isEmpty()
-                            ? " (이름 비교)" : " (직접 연결됨)").append("\\n");
-        b.append("\\n최근 카톡 알림 정보 (메시지 본문 제외):\\n");
+                            ? " (이름 비교)" : " (직접 연결됨)").append("\n");
+        b.append("\n최근 카톡 알림 정보 (메시지 본문 제외):\n");
         if (info.isEmpty())
-            b.append("아직 수신한 카톡 알림이 없어. 카톡 앱 설정에서 메시지 미리보기를 켜고, "
+            b.append("아직 수신한 카톡 알림이 없어. 카카오톡에서 새 메시지 알림이 수신되도록 설정하고, "
                     + "단톡방에서 새 알림을 받은 다음 다시 확인해 줘.");
         else for (int k = 0; k < Math.min(8, info.size()); k++)
-            b.append(k + 1).append(". ").append(info.get(k)).append("\\n\\n");
+            b.append(k + 1).append(". ").append(info.get(k)).append("\n\n");
         new AlertDialog.Builder(this).setTitle("단톡방 알림 진단")
                 .setMessage(b.toString()).setPositiveButton("확인", null).show();
     }
