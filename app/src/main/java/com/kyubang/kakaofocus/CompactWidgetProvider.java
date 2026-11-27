@@ -45,7 +45,7 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
                 : theme == 2 ? R.drawable.widget_bg_translucent : R.drawable.widget_bg;
         int ink = theme == 1 ? Color.rgb(51, 38, 52) : Color.WHITE;
         int accent = theme == 1 ? Color.rgb(178, 49, 113) : Color.rgb(255, 182, 220);
-        float sp = active <= 2 ? 9f : active == 3 ? 8f : 7f;
+        float sp = RoomStore.compactSp(context);
         int[] rows = {R.id.compact_row_1, R.id.compact_row_2,
                 R.id.compact_row_3, R.id.compact_row_4};
         for (int id : ids) {
