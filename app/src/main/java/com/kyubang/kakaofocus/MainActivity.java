@@ -27,6 +27,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,6 +35,8 @@ import java.util.Set;
 public final class MainActivity extends Activity {
     private static final int CHOOSE_PAUSE_IMAGE = 2071;
     private static final int EDIT_PAUSE_IMAGE = 2073;
+    private static final int EXPORT_SETTINGS = 4081;
+    private static final int IMPORT_SETTINGS = 4082;
     private static final int INK = Color.rgb(54, 35, 49);
     private static final int MUTED = Color.rgb(117, 87, 107);
     private static final int PINK = Color.rgb(196, 60, 127);
@@ -58,7 +61,7 @@ public final class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 8 💌", 26, true);
+        TextView heading = text("카톡 한눈에 9 💌", 26, true);
         heading.setTextColor(PINK);
         page.addView(heading);
         addWithTop(page, text("알림은 간단하게, 카톡 확인은 내가 정한 시간에.", 13, false), 6);
@@ -182,6 +185,14 @@ public final class MainActivity extends Activity {
         previewView.setPadding(dp(14), dp(12), dp(14), dp(12));
         addWithTop(widgetsPanel, previewView, 8);
         addWithTop(widgetsPanel, text("수능 D-day는 2×1에만 표시되며, 2027년 11월 18일을 기준으로 해.", 12, false), 8);
+
+        addWithTop(widgetsPanel, text("💾 설정 백업 · 복원", 18, true), 22);
+        addWithTop(widgetsPanel, text("톡방, 위젯 스타일, 차단 시간과 표시 방식, 차단 위젯 사진을 ZIP 파일 하나로 보관해. 기기 교체나 새 앱 설치 때 사용할 수 있어.", 12, false), 7);
+        Button export = addButton(widgetsPanel, "⬇️ 내 설정 백업 파일 저장", true);
+        export.setOnClickListener(v -> exportSettings());
+        Button restore = addButton(widgetsPanel, "⬆️ 기존 백업 파일 불러오기", false);
+        restore.setOnClickListener(v -> importSettings());
+        addWithTop(widgetsPanel, text("백업에는 대화 내용이나 알림 기록이 들어가지 않아. 파일에 톡방 이름과 사진이 포함되니 다른 사람에게 공유하지 마. 알림·접근성 권한은 복원되지 않아.", 11, false), 8);
     }
 
     private void buildFocus() {
@@ -207,6 +218,22 @@ public final class MainActivity extends Activity {
             }
         });
         addWithTop(focusPanel, text("1분                                             60분", 12, false), 0);
+
+        addWithTop(focusPanel, text("차단 중 사진 위 표시", 16, true), 17);
+        Spinner displayMode = spinner(new String[]{
+                "자세히 · 차단 중 + 큰 남은 시간",
+                "간단히 · 작은 남은 시간만",
+                "사진만 · 차단 중에도 글씨 숨김"
+        }, PauseState.displayMode(this));
+        addWithTop(focusPanel, displayMode, 6);
+        Button saveDisplay = addButton(focusPanel, "차단 중 표시 방식 적용", false);
+        saveDisplay.setOnClickListener(v -> {
+            PauseState.saveDisplayMode(this, displayMode.getSelectedItemPosition());
+            refreshUI();
+            Toast.makeText(this, "차단 위젯 표시 방식을 변경했어.", Toast.LENGTH_SHORT).show();
+        });
+        addWithTop(focusPanel, text("사진을 아직 고르지 않았다면 상태 글씨가 표시돼. 차단 중 사진만 보기 모드에서는 남은 시간이 숨겨지지만 설정 화면에서 확인할 수 있어.", 12, false), 5);
+
         pauseStatus = text("", 13, true);
         pauseStatus.setPadding(dp(11), dp(10), dp(11), dp(10));
         pauseStatus.setBackground(round(Color.rgb(255, 226, 239), 10));
@@ -238,6 +265,39 @@ public final class MainActivity extends Activity {
                 + "이 권한은 신뢰하는 앱에만 부여해 줘.", 11, false), 9);
     }
 
+    private void exportSettings() {
+        Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        save.setType("application/zip");
+        save.addCategory(Intent.CATEGORY_OPENABLE);
+        save.putExtra(Intent.EXTRA_TITLE, "kakao-focus-settings.zip");
+        startActivityForResult(save, EXPORT_SETTINGS);
+    }
+
+    private void importSettings() {
+        Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        open.setType("application/zip");
+        open.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(open, IMPORT_SETTINGS);
+    }
+
+    private void restoreWithConfirmation(Uri uri) {
+        new AlertDialog.Builder(this)
+                .setTitle("저장된 설정을 불러올까?")
+                .setMessage("현재 톡방 이름과 위젯 디자인, 차단 시간, 사진이 백업 파일의 내용으로 변경돼. 앱 권한은 별도로 다시 허용해야 해.")
+                .setNegativeButton("취소", null)
+                .setPositiveButton("복원하기", (dialog, which) -> {
+                    try {
+                        BackupStore.restoreFrom(this, uri);
+                        Toast.makeText(this, "설정과 위젯 사진 복원 완료!", Toast.LENGTH_LONG).show();
+                        recreate();
+                    } catch (IOException | RuntimeException error) {
+                        Toast.makeText(this, "복원 실패: " + error.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    }
+                })
+                .show();
+    }
+
     private void pickPhoto() {
         Intent gallery;
         if (Build.VERSION.SDK_INT >= 33) {
@@ -254,7 +314,19 @@ public final class MainActivity extends Activity {
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK) return;
-        if (requestCode == CHOOSE_PAUSE_IMAGE) {
+        if (requestCode == EXPORT_SETTINGS) {
+            if (data == null || data.getData() == null) return;
+            try {
+                BackupStore.exportTo(this, data.getData());
+                Toast.makeText(this, "설정 백업 ZIP 파일을 저장했어!", Toast.LENGTH_LONG).show();
+            } catch (IOException | RuntimeException error) {
+                Toast.makeText(this, "백업 실패: " + error.getMessage(),
+                        Toast.LENGTH_LONG).show();
+            }
+        } else if (requestCode == IMPORT_SETTINGS) {
+            if (data != null && data.getData() != null)
+                restoreWithConfirmation(data.getData());
+        } else if (requestCode == CHOOSE_PAUSE_IMAGE) {
             if (data == null || data.getData() == null) return;
             Uri selected = data.getData();
             Intent edit = new Intent(this, CropActivity.class);
