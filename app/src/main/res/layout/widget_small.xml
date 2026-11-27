@@ -6,45 +6,47 @@
     android:orientation="vertical"
     android:gravity="center_vertical"
     android:background="@drawable/widget_bg"
-    android:paddingStart="7dp"
-    android:paddingEnd="7dp"
-    android:paddingTop="3dp"
-    android:paddingBottom="3dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
-        <TextView android:id="@+id/room_name_1"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
-            android:gravity="center_vertical" android:singleLine="true" android:ellipsize="end"
-            android:includeFontPadding="false" android:textSize="10sp" android:textColor="#F0EBF3"/>
-        <TextView android:id="@+id/room_status_1"
-            android:layout_width="wrap_content" android:layout_height="match_parent"
-            android:gravity="center_vertical" android:singleLine="true"
-            android:includeFontPadding="false" android:paddingStart="3dp"
-            android:textSize="9sp" android:textColor="#FFB6DC"/>
-    </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
-        <TextView android:id="@+id/room_name_2"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
-            android:gravity="center_vertical" android:singleLine="true" android:ellipsize="end"
-            android:includeFontPadding="false" android:textSize="10sp" android:textColor="#F0EBF3"/>
-        <TextView android:id="@+id/room_status_2"
-            android:layout_width="wrap_content" android:layout_height="match_parent"
-            android:gravity="center_vertical" android:singleLine="true"
-            android:includeFontPadding="false" android:paddingStart="3dp"
-            android:textSize="9sp" android:textColor="#FFB6DC"/>
-    </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
-        android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
-        <TextView android:id="@+id/room_name_3"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
-            android:gravity="center_vertical" android:singleLine="true" android:ellipsize="end"
-            android:includeFontPadding="false" android:textSize="10sp" android:textColor="#F0EBF3"/>
-        <TextView android:id="@+id/room_status_3"
-            android:layout_width="wrap_content" android:layout_height="match_parent"
-            android:gravity="center_vertical" android:singleLine="true"
-            android:includeFontPadding="false" android:paddingStart="3dp"
-            android:textSize="9sp" android:textColor="#FFB6DC"/>
-    </LinearLayout>
+    <TextView
+        android:id="@+id/room_row_1"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:textSize="9sp"
+        android:textColor="#FFFFFF"
+        android:text="① 톡방 등록"/>
+
+    <TextView
+        android:id="@+id/room_row_2"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:textSize="9sp"
+        android:textColor="#FFFFFF"
+        android:text="② 톡방 등록"/>
+
+    <TextView
+        android:id="@+id/room_row_3"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:textSize="9sp"
+        android:textColor="#FFFFFF"
+        android:text="③ 톡방 등록"/>
 </LinearLayout>
