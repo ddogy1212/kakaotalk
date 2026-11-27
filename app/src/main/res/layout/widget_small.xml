@@ -1,33 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root" android:layout_width="match_parent"
-    android:layout_height="match_parent" android:orientation="vertical"
-    android:gravity="center_vertical" android:background="@drawable/widget_bg"
-    android:paddingStart="14dp" android:paddingEnd="14dp"
-    android:paddingTop="1dp" android:paddingBottom="2dp">
-    <TextView android:id="@+id/exam_d_day"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:gravity="end|center_vertical" android:singleLine="true"
-        android:includeFontPadding="false" android:textSize="7sp"
-        android:textColor="#FFB6DC" android:text="수능 D-356"/>
-    <TextView android:id="@+id/room_row_1" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:gravity="center_vertical"
-        android:singleLine="true" android:ellipsize="end"
-        android:includeFontPadding="false" android:textSize="9sp"
-        android:textColor="#FFFFFF" android:text="1번 톡방"/>
-    <TextView android:id="@+id/room_row_2" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:gravity="center_vertical"
-        android:singleLine="true" android:ellipsize="end"
-        android:includeFontPadding="false" android:textSize="9sp"
-        android:textColor="#FFFFFF" android:text="2번 톡방"/>
-    <TextView android:id="@+id/room_row_3" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:gravity="center_vertical"
-        android:singleLine="true" android:ellipsize="end"
-        android:includeFontPadding="false" android:textSize="9sp"
-        android:textColor="#FFFFFF" android:text="3번 톡방"/>
-    <TextView android:id="@+id/room_row_4" android:layout_width="match_parent"
-        android:layout_height="wrap_content" android:gravity="center_vertical"
-        android:singleLine="true" android:ellipsize="end"
-        android:includeFontPadding="false" android:textSize="9sp"
-        android:textColor="#FFFFFF" android:text="4번 톡방"/>
-</LinearLayout>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="1dp"
+    android:paddingBottom="2dp">
+
+    <!-- Chat rows keep their own compact center; the D-day never takes up a row. -->
+    <LinearLayout android:id="@+id/widget_chat_rows"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingTop="2dp">
+        <TextView android:id="@+id/room_row_1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:paddingEnd="43dp"
+            android:textSize="9sp"
+            android:textColor="#FFFFFF"
+            android:text="1번 톡방"/>
+        <TextView android:id="@+id/room_row_2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:textSize="9sp"
+            android:textColor="#FFFFFF"
+            android:text="2번 톡방"/>
+        <TextView android:id="@+id/room_row_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:textSize="9sp"
+            android:textColor="#FFFFFF"
+            android:text="3번 톡방"/>
+        <TextView android:id="@+id/room_row_4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:textSize="9sp"
+            android:textColor="#FFFFFF"
+            android:text="4번 톡방"/>
+    </LinearLayout>
+
+    <!-- Explicit upper-right overlay in a smaller type size than room labels. -->
+    <TextView
+        android:id="@+id/exam_d_day"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:gravity="end|top"
+        android:singleLine="true"
+        android:includeFontPadding="false"
+        android:textSize="5.5sp"
+        android:textColor="#FFB6DC"
+        android:text="수능 D-356"/>
+</FrameLayout>
