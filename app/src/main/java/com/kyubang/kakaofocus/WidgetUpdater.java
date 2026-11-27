@@ -142,6 +142,7 @@ final class WidgetUpdater {
                 views.setViewVisibility(rows[i], i < active ? View.VISIBLE : View.GONE);
                 if (i >= active) continue;
                 String room = RoomStore.name(app, i);
+                String displayName = RoomStore.displayName(app, i);
                 int count = RoomStore.count(app, i);
                 String name;
                 String status;
@@ -149,13 +150,13 @@ final class WidgetUpdater {
                     name = (i + 1) + "번 톡방 등록";
                     status = "";
                 } else if (!granted) {
-                    name = room;
+                    name = displayName;
                     status = "권한 필요";
                 } else if (!connected) {
-                    name = room;
+                    name = displayName;
                     status = "연결 확인";
                 } else {
-                    name = room;
+                    name = displayName;
                     status = countAndTime(app, i);
                     if (count > 0) anyAlert = true;
                 }
