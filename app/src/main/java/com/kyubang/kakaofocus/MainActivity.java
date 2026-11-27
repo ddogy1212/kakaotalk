@@ -13,6 +13,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -27,6 +28,7 @@ public class MainActivity extends Activity {
     private TextView statusView;
     private TextView previewView;
     private TextView titlesView;
+    private Spinner roomCountPicker;
     private final int ink = Color.rgb(52, 41, 58);
     private final int pink = Color.rgb(185, 63, 126);
 
@@ -43,13 +45,13 @@ public class MainActivity extends Activity {
         scroll.addView(layout);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 4 💌", 25, true);
+        TextView heading = text("카톡 한눈에 5 💌", 25, true);
         heading.setTextColor(pink);
         layout.addView(heading);
 
         TextView description = text(
-                "카톡을 열지 않고 중요한 톡방 3개의 알림만 확인해요.\n"
-                + "홈 화면 2×1 위젯에서 세 줄을 한눈에 볼 수 있어요.", 14, false);
+                "중요한 카톡방 1~4개의 알림만 확인해요.\n"
+                + "홈 화면과 굿락의 작은 위젯에서 한눈에 볼 수 있어요.", 14, false);
         addWithTop(layout, description, 12);
 
         statusView = text("", 14, true);
@@ -79,7 +81,17 @@ public class MainActivity extends Activity {
             startActivity(appInfo);
         });
 
-        addWithTop(layout, text("2. 감시할 카카오톡 채팅방 이름", 18, true), 24);
+        addWithTop(layout, text("2. 감시할 카카오톡 채팅방", 18, true), 24);
+        addWithTop(layout, text("표시할 채팅방 개수 (1~4개)", 15, true), 10);
+        roomCountPicker = new Spinner(this);
+        ArrayAdapter<String> roomCounts = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"1개", "2개", "3개", "4개"});
+        roomCounts.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        roomCountPicker.setAdapter(roomCounts);
+        roomCountPicker.setSelection(RoomStore.activeRooms(this) - 1);
+        addWithTop(layout, roomCountPicker, 5);
+        addWithTop(layout, text("4개 선택 시 작은 굿락 위젯에서는 글씨가 더 작아질 수 있어.", 12, false), 5);
         addWithTop(layout, text(
                 "카톡 알림에 표시되는 이름과 똑같이 입력해 주세요.\n"
                 + "메시지 내용은 저장하지 않아요.", 13, false), 6);
@@ -94,12 +106,20 @@ public class MainActivity extends Activity {
             inputs[i] = edit;
             addWithTop(layout, edit, 12);
         }
+        updateRoomFields();
+        roomCountPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View selected,
+                                                  int position, long id) {
+                updateRoomFields();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
         Button pick = button("📋 감지된 톡방에서 선택하기");
         addWithTop(layout, pick, 6);
         pick.setOnClickListener(v -> showRecentPicker());
 
-        Button save = button("채팅방 3개 저장");
+        Button save = button("선택한 채팅방 저장");
         addWithTop(layout, save, 16);
         save.setOnClickListener(v -> saveRooms());
 
@@ -200,7 +220,9 @@ public class MainActivity extends Activity {
                 .setTitle("등록할 톡방 이름 선택")
                 .setItems(recent.toArray(new String[0]), (d, selectedIndex) -> {
                     String selectedName = recent.get(selectedIndex);
-                    String[] slots = {"1번 칸에 등록", "2번 칸에 등록", "3번 칸에 등록"};
+                    int active = roomCountPicker.getSelectedItemPosition() + 1;
+                    String[] slots = new String[active];
+                    for (int i = 0; i < active; i++) slots[i] = (i + 1) + "번 칸에 등록";
                     new AlertDialog.Builder(this)
                             .setTitle(selectedName)
                             .setItems(slots, (d2, slot) -> {
@@ -216,23 +238,34 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private void updateRoomFields() {
+        if (roomCountPicker == null) return;
+        int active = roomCountPicker.getSelectedItemPosition() + 1;
+        for (int i = 0; i < inputs.length; i++) {
+            if (inputs[i] != null) inputs[i].setVisibility(i < active ? View.VISIBLE : View.GONE);
+        }
+    }
+
     private void saveRooms() {
         String[] rooms = new String[RoomStore.ROOM_COUNT];
         for (int i = 0; i < rooms.length; i++) {
             rooms[i] = inputs[i].getText().toString().trim();
         }
         Set<String> duplicates = new HashSet<>();
-        for (String name : rooms) {
+        int active = roomCountPicker.getSelectedItemPosition() + 1;
+        for (int i = 0; i < active; i++) {
+            String name = rooms[i];
             if (!name.isEmpty() && !duplicates.add(name)) {
                 Toast.makeText(this, "같은 톡방을 중복 등록할 수 없어.", Toast.LENGTH_LONG).show();
                 return;
             }
         }
         RoomStore.saveRooms(this, rooms);
+        RoomStore.saveActiveRooms(this, active);
         NotificationWatcher.refreshConfiguredRooms();
         WidgetUpdater.updateAll(this);
         renderStatus();
-        Toast.makeText(this, "저장 완료! 이제 위젯을 추가해 주세요.", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, active + "개 채팅방 설정을 저장했어!", Toast.LENGTH_SHORT).show();
     }
 
     private void renderStatus() {
@@ -254,13 +287,14 @@ public class MainActivity extends Activity {
         int safe = dp(WidgetUpdater.insetDp(this));
         previewView.setPadding(safe, dp(6), safe, dp(6));
         StringBuilder preview = new StringBuilder();
-        for (int i = 0; i < RoomStore.ROOM_COUNT; i++) {
+        int active = RoomStore.activeRooms(this);
+        for (int i = 0; i < active; i++) {
             String name = RoomStore.name(this, i);
             if (name.isEmpty()) name = (i + 1) + "번째 톡방 미등록";
             preview.append(name).append("    ");
             preview.append(!granted ? "권한 필요" :
                     !connected ? "연결 확인" : WidgetUpdater.countAndTime(this, i));
-            if (i < RoomStore.ROOM_COUNT - 1) preview.append("\n");
+            if (i < active - 1) preview.append("\n");
         }
         previewView.setText(preview.toString());
 
