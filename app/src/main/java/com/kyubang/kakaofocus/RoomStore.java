@@ -2,6 +2,11 @@ package com.kyubang.kakaofocus;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.Collections;
+import java.util.Comparator;
 import org.json.JSONArray;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +51,102 @@ final class RoomStore {
             editor.putString("nickname_" + i, value);
         }
         editor.apply();
+    }
+
+    /** Hashed stable notification identity, never message text or raw Kakao IDs. */
+    static String conversationToken(Context c, String identity) {
+        if (identity == null || identity.isEmpty()) return "";
+        SharedPreferences p = prefs(c);
+        String salt = p.getString("conversation_salt", "");
+        if (salt.isEmpty()) {
+            salt = UUID.randomUUID().toString();
+            p.edit().putString("conversation_salt", salt).commit();
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((salt + "|" + identity)
+                    .getBytes(StandardCharsets.UTF_8));
+            StringBuilder token = new StringBuilder("c");
+            for (int i = 0; i < 12; i++)
+                token.append(String.format(java.util.Locale.ROOT, "%02x", bytes[i] & 0xff));
+            return token.toString();
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            return "";
+        }
+    }
+
+    static String boundConversation(Context c, int index) {
+        return prefs(c).getString("conversation_binding_" + index, "");
+    }
+
+    static void bindConversation(Context c, int index, String token) {
+        if (index < 0 || index >= ROOM_COUNT) return;
+        SharedPreferences.Editor editor = prefs(c).edit();
+        // A single conversation cannot silently count towards two configured rooms.
+        for (int i = 0; i < ROOM_COUNT; i++)
+            if (i != index && token.equals(boundConversation(c, i)))
+                editor.remove("conversation_binding_" + i);
+        editor.putString("conversation_binding_" + index, token == null ? "" : token).apply();
+    }
+
+    static final class Conversation {
+        final String token;
+        final String label;
+        final long when;
+        final boolean group;
+        Conversation(String token, String label, long when, boolean group) {
+            this.token = token;
+            this.label = label;
+            this.when = when;
+            this.group = group;
+        }
+    }
+
+    /** Minimal on-device history of recent Kakao notification identities, no bodies. */
+    static List<Conversation> recentConversations(Context c) {
+        List<Conversation> found = new ArrayList<>();
+        try {
+            JSONArray array = new JSONArray(prefs(c).getString("recent_conversations", "[]"));
+            long cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L;
+            for (int i = 0; i < array.length(); i++) {
+                org.json.JSONObject item = array.optJSONObject(i);
+                if (item == null) continue;
+                String token = item.optString("id", "");
+                String label = item.optString("name", "");
+                long time = item.optLong("time", 0);
+                if (!token.startsWith("c") || token.length() != 25 || time < cutoff)
+                    continue;
+                found.add(new Conversation(token, label, time, item.optBoolean("group", false)));
+            }
+        } catch (Exception ignored) {}
+        Collections.sort(found, (a, b) -> Long.compare(b.when, a.when));
+        return found;
+    }
+
+    static void rememberConversation(Context c, String token, String label,
+                                     long when, boolean group) {
+        if (token == null || token.isEmpty() || when <= 0) return;
+        List<Conversation> old = recentConversations(c);
+        JSONArray array = new JSONArray();
+        try {
+            org.json.JSONObject fresh = new org.json.JSONObject();
+            fresh.put("id", token);
+            fresh.put("name", label == null ? "" : label.trim().substring(
+                    0, Math.min(80, label.trim().length())));
+            fresh.put("time", Math.min(System.currentTimeMillis(), when));
+            fresh.put("group", group);
+            array.put(fresh);
+            for (Conversation entry : old) {
+                if (entry.token.equals(token) || array.length() >= 16) continue;
+                org.json.JSONObject item = new org.json.JSONObject();
+                item.put("id", entry.token);
+                item.put("name", entry.label);
+                item.put("time", entry.when);
+                item.put("group", entry.group);
+                array.put(item);
+            }
+            prefs(c).edit().putString("recent_conversations", array.toString()).apply();
+        } catch (org.json.JSONException ignored) {}
     }
 
     static int count(Context c, int index) {
@@ -163,6 +264,7 @@ final class RoomStore {
                 editor.putLong("last_message_" + i, 0L);
                 // Never leak a previous room's alias when the tracked room changes.
                 editor.putString("nickname_" + i, "");
+                editor.remove("conversation_binding_" + i);
             }
             editor.putString("room_" + i, value);
         }
