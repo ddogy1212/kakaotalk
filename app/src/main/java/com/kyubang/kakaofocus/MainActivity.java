@@ -30,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.util.function.IntConsumer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,9 +51,13 @@ public final class MainActivity extends Activity {
     private Button roomsTab, widgetsTab, focusTab;
     private Spinner roomCount;
     private TextView statusView, previewDay, titlesView, pauseStatus, minutesLabel;
-    private FrameLayout previewView;
-    private LinearLayout previewPositioner, previewRows;
+    private FrameLayout previewView, previewDayAnchor, compactPreviewFrame;
+    private LinearLayout previewPositioner, previewRows, compactPreviewRows;
     private ImageView pausePreview;
+
+    // Draft changes affect previews only; persisted and pushed to widgets on Apply.
+    private int draftTheme, draftAlign, draftChatSp, draftCompactSp, draftDaySp,
+            draftInsetDp, draftDayTopDp, draftDayEndDp;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -184,40 +189,21 @@ public final class MainActivity extends Activity {
     }
 
     private void buildWidgets() {
-        addWithTop(widgetsPanel, text("🎨 위젯 디자인", 20, true), 0);
-        addWithTop(widgetsPanel, text("2×1 알림 + 수능 D-day, 1×1 알림, 1×1 사진 차단 위젯을 따로 추가할 수 있어.", 13, false), 7);
-        addWithTop(widgetsPanel, text("위젯 배경", 14, true), 16);
-        Spinner theme = spinner(new String[]{"다크", "화이트", "반투명"},
-                RoomStore.theme(this));
-        addWithTop(widgetsPanel, theme, 4);
-        addWithTop(widgetsPanel, text("글씨 크기", 14, true), 12);
-        Spinner size = spinner(new String[]{"작게", "보통", "크게"},
-                RoomStore.fontScale(this));
-        addWithTop(widgetsPanel, size, 4);
-        addWithTop(widgetsPanel, text("글씨 정렬", 14, true), 12);
-        Spinner align = spinner(new String[]{"왼쪽", "가운데", "오른쪽"},
-                RoomStore.align(this));
-        addWithTop(widgetsPanel, align, 4);
-        addWithTop(widgetsPanel, text("둥근 모서리 보호 여백", 14, true), 12);
-        Spinner inset = spinner(new String[]{"10dp", "14dp · 추천", "18dp"},
-                RoomStore.inset(this));
-        addWithTop(widgetsPanel, inset, 4);
-        Button apply = addButton(widgetsPanel, "위젯 디자인 저장", true);
-        apply.setOnClickListener(v -> {
-            RoomStore.saveAppearance(this, theme.getSelectedItemPosition(),
-                    size.getSelectedItemPosition(), align.getSelectedItemPosition(),
-                    inset.getSelectedItemPosition());
-            WidgetUpdater.updateAll(this);
-            PauseWidgetProvider.updateAll(this);
-            refreshUI();
-            Toast.makeText(this, "디자인을 적용했어!", Toast.LENGTH_SHORT).show();
-        });
+        draftTheme = RoomStore.theme(this);
+        draftAlign = RoomStore.align(this);
+        draftChatSp = RoomStore.chatSp(this);
+        draftCompactSp = RoomStore.compactSp(this);
+        draftDaySp = RoomStore.daySp(this);
+        draftInsetDp = RoomStore.safeInsetDp(this);
+        draftDayTopDp = RoomStore.dayTopDp(this);
+        draftDayEndDp = RoomStore.dayEndDp(this);
 
-        addWithTop(widgetsPanel, text("1×1 알림 위젯은 사진 없이 기존 디자인으로 표시돼.", 13, false), 16);
+        addWithTop(widgetsPanel, text("🎨 실시간 위젯 편집기", 20, true), 0);
+        addWithTop(widgetsPanel, text(
+                "슬라이더를 움직이면 아래 미리보기에 바로 반영돼. 실제 위젯은 맨 아래 '적용'을 누를 때만 바뀌어.",
+                12, false), 7);
 
-        addWithTop(widgetsPanel, text("2×1 위젯 미리보기", 16, true), 19);
-        // Use the same layered structure as the actual 2x1 widget:
-        // room rows as a centered group, D-day as an independent top-right label.
+        addWithTop(widgetsPanel, text("2×1 · 카톡 알림 + 수능 D-day", 14, true), 17);
         previewView = new FrameLayout(this);
         previewPositioner = new LinearLayout(this);
         previewPositioner.setGravity(Gravity.CENTER);
@@ -225,29 +211,137 @@ public final class MainActivity extends Activity {
         previewRows.setOrientation(LinearLayout.VERTICAL);
         previewRows.setGravity(Gravity.CENTER_HORIZONTAL);
         previewPositioner.addView(previewRows, new LinearLayout.LayoutParams(-2, -2));
-        previewView.addView(previewPositioner,
-                new FrameLayout.LayoutParams(-1, -1));
-        previewDay = text("", 7, false);
-        previewDay.setTextSize(5f);
-        previewDay.setSingleLine(true);
-        FrameLayout.LayoutParams dayPlacement =
-                new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
-        // The preview matches the actual widget's safety inset inside rounded corners.
-        dayPlacement.topMargin = dp(9);
-        dayPlacement.rightMargin = dp(12);
-        previewView.addView(previewDay, dayPlacement);
-        LinearLayout.LayoutParams previewBox = new LinearLayout.LayoutParams(-1, dp(122));
-        previewBox.topMargin = dp(8);
-        widgetsPanel.addView(previewView, previewBox);
-        addWithTop(widgetsPanel, text("수능 D-day는 2×1에만 표시되며, 2027년 11월 18일을 기준으로 해.", 12, false), 8);
+        previewView.addView(previewPositioner, new FrameLayout.LayoutParams(-1, -1));
 
-        addWithTop(widgetsPanel, text("💾 설정 백업 · 복원", 18, true), 22);
-        addWithTop(widgetsPanel, text("톡방, 위젯 스타일, 차단 시간과 표시 방식, 차단 위젯 사진을 ZIP 파일 하나로 보관해. 기기 교체나 새 앱 설치 때 사용할 수 있어.", 12, false), 7);
-        Button export = addButton(widgetsPanel, "⬇️ 내 설정 백업 파일 저장", true);
+        previewDayAnchor = new FrameLayout(this);
+        previewDay = text("", 7, false);
+        previewDay.setSingleLine(true);
+        previewDay.setIncludeFontPadding(false);
+        previewDayAnchor.addView(previewDay,
+                new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END));
+        previewView.addView(previewDayAnchor, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout.LayoutParams widePreview = new LinearLayout.LayoutParams(-1, dp(110));
+        widePreview.topMargin = dp(9);
+        widgetsPanel.addView(previewView, widePreview);
+
+        addWithTop(widgetsPanel, text("1×1 · 작은 카톡 알림", 14, true), 17);
+        compactPreviewFrame = new FrameLayout(this);
+        compactPreviewRows = new LinearLayout(this);
+        compactPreviewRows.setOrientation(LinearLayout.VERTICAL);
+        compactPreviewRows.setGravity(Gravity.CENTER);
+        compactPreviewFrame.addView(compactPreviewRows,
+                new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout.LayoutParams smallPreview = new LinearLayout.LayoutParams(dp(126), dp(126));
+        smallPreview.topMargin = dp(8);
+        widgetsPanel.addView(compactPreviewFrame, smallPreview);
+
+        addWithTop(widgetsPanel, text("위젯 테마", 14, true), 19);
+        Spinner themePicker = spinner(new String[]{"다크", "화이트", "반투명"}, draftTheme);
+        addWithTop(widgetsPanel, themePicker, 4);
+        themePicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> adapter, View selected,
+                                                  int position, long id) {
+                draftTheme = position;
+                renderPreview();
+            }
+            @Override public void onNothingSelected(AdapterView<?> adapter) {}
+        });
+
+        addWithTop(widgetsPanel, text("글씨 정렬", 14, true), 12);
+        Spinner alignmentPicker = spinner(new String[]{"왼쪽", "가운데", "오른쪽"}, draftAlign);
+        addWithTop(widgetsPanel, alignmentPicker, 4);
+        alignmentPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> adapter, View selected,
+                                                  int position, long id) {
+                draftAlign = position;
+                renderPreview();
+            }
+            @Override public void onNothingSelected(AdapterView<?> adapter) {}
+        });
+
+        addDesignSlider(widgetsPanel, "2×1 톡방 글씨 크기", 7, 18, draftChatSp,
+                value -> draftChatSp = value);
+        addDesignSlider(widgetsPanel, "1×1 톡방 글씨 크기", 6, 16, draftCompactSp,
+                value -> draftCompactSp = value);
+        addDesignSlider(widgetsPanel, "수능 D-day 글씨 크기", 4, 12, draftDaySp,
+                value -> draftDaySp = value);
+        addDesignSlider(widgetsPanel, "둥근 테두리 보호 여백", 6, 26, draftInsetDp,
+                value -> draftInsetDp = value);
+        addDesignSlider(widgetsPanel, "수능 D-day 위쪽 여백", 2, 30, draftDayTopDp,
+                value -> draftDayTopDp = value);
+        addDesignSlider(widgetsPanel, "수능 D-day 오른쪽 여백", 2, 32, draftDayEndDp,
+                value -> draftDayEndDp = value);
+
+        addWithTop(widgetsPanel, text(
+                "굿락의 실제 위젯 크기는 다를 수 있어. 글씨를 너무 키우면 일부가 잘릴 수 있으니 미리보기와 잠금화면을 모두 확인해 줘.",
+                12, false), 14);
+
+        Button apply = addButton(widgetsPanel, "✓ 이 디자인 적용", true);
+        apply.setOnClickListener(v -> {
+            RoomStore.saveWidgetDesign(this, draftTheme, draftAlign, draftChatSp,
+                    draftCompactSp, draftDaySp, draftInsetDp, draftDayTopDp, draftDayEndDp);
+            WidgetUpdater.updateAll(this);
+            PauseWidgetProvider.updateAll(this);
+            refreshUI();
+            Toast.makeText(this, "선택한 크기·위치·색상·정렬을 위젯에 적용했어!",
+                    Toast.LENGTH_SHORT).show();
+        });
+
+        addWithTop(widgetsPanel, text("💾 설정 백업 · 복원", 18, true), 24);
+        addWithTop(widgetsPanel, text(
+                "위젯 크기와 위치, 톡방·별명, 차단 시간, 사진을 ZIP 파일 하나로 저장할 수 있어.",
+                12, false), 7);
+        Button export = addButton(widgetsPanel, "⬇️ 내 설정 백업 파일 저장", false);
         export.setOnClickListener(v -> exportSettings());
         Button restore = addButton(widgetsPanel, "⬆️ 기존 백업 파일 불러오기", false);
         restore.setOnClickListener(v -> importSettings());
-        addWithTop(widgetsPanel, text("백업에는 대화 내용이나 알림 기록이 들어가지 않아. 파일에 톡방 이름과 사진이 포함되니 다른 사람에게 공유하지 마. 알림·접근성 권한은 복원되지 않아.", 11, false), 8);
+        addWithTop(widgetsPanel, text(
+                "백업에는 알림 기록이나 메시지 내용이 들어가지 않아. 시스템 권한은 복원되지 않아.",
+                11, false), 8);
+    }
+
+    private void addDesignSlider(LinearLayout panel, String label, int minimum, int maximum,
+                                 int initial, IntConsumer onValueChanged) {
+        LinearLayout heading = new LinearLayout(this);
+        heading.setOrientation(LinearLayout.HORIZONTAL);
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        TextView name = text(label, 14, true);
+        TextView number = text(initial + (label.contains("글씨") ? "sp" : "dp"), 14, true);
+        number.setTextColor(PINK);
+        number.setGravity(Gravity.END);
+        heading.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
+        heading.addView(number, new LinearLayout.LayoutParams(-2, -2));
+        addWithTop(panel, heading, 17);
+
+        SeekBar slider = new SeekBar(this);
+        slider.setMax(maximum - minimum);
+        slider.setProgress(initial - minimum);
+        slider.setSplitTrack(false);
+        slider.setProgressTintList(ColorStateList.valueOf(PINK));
+        slider.setThumbTintList(ColorStateList.valueOf(PINK));
+        slider.setProgressBackgroundTintList(
+                ColorStateList.valueOf(Color.rgb(242, 207, 225)));
+        slider.setPadding(dp(5), dp(6), dp(5), dp(6));
+        addWithTop(panel, slider, 4);
+
+        LinearLayout endpoints = new LinearLayout(this);
+        endpoints.setGravity(Gravity.CENTER_VERTICAL);
+        TextView left = text(minimum + "", 11, false);
+        TextView right = text(maximum + "", 11, false);
+        right.setGravity(Gravity.END);
+        endpoints.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
+        endpoints.addView(right, new LinearLayout.LayoutParams(0, -2, 1f));
+        addWithTop(panel, endpoints, 0);
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean user) {
+                int value = minimum + progress;
+                number.setText(value + (label.contains("글씨") ? "sp" : "dp"));
+                onValueChanged.accept(value);
+                renderPreview();
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) {}
+            @Override public void onStopTrackingTouch(SeekBar bar) {}
+        });
     }
 
     private void buildFocus() {
@@ -442,43 +536,69 @@ public final class MainActivity extends Activity {
     }
 
     private void renderPreview() {
-        if (previewView == null || previewRows == null || previewDay == null) return;
-        int theme = RoomStore.theme(this);
-        int background = theme == 1 ? Color.rgb(255, 249, 252)
-                : theme == 2 ? Color.argb(179, 26, 23, 33)
+        if (previewView == null || previewRows == null || previewDay == null
+                || compactPreviewFrame == null || compactPreviewRows == null) return;
+
+        int background = draftTheme == 1 ? Color.rgb(255, 249, 252)
+                : draftTheme == 2 ? Color.argb(179, 26, 23, 33)
                 : Color.rgb(41, 36, 47);
-        int ink = theme == 1 ? INK : Color.rgb(240, 235, 243);
-        int muted = theme == 1 ? MUTED : Color.rgb(183, 174, 190);
-        int accent = theme == 1 ? Color.rgb(177, 43, 105)
+        int ink = draftTheme == 1 ? INK : Color.rgb(240, 235, 243);
+        int muted = draftTheme == 1 ? MUTED : Color.rgb(183, 174, 190);
+        int accent = draftTheme == 1 ? Color.rgb(177, 43, 105)
                 : Color.rgb(255, 182, 220);
+        int alignment = Gravity.CENTER_VERTICAL | (draftAlign == 1
+                ? Gravity.CENTER_HORIZONTAL : draftAlign == 2 ? Gravity.RIGHT : Gravity.LEFT);
+
         previewView.setBackground(round(background, 15));
-        int side = dp(WidgetUpdater.insetDp(this));
-        previewView.setPadding(side, dp(3), side, dp(3));
-        int alignment = Gravity.CENTER_VERTICAL | WidgetUpdater.horizontalGravity(this);
+        previewView.setPadding(dp(draftInsetDp), dp(2),
+                dp(draftInsetDp), dp(2));
         previewPositioner.setGravity(alignment);
         previewRows.setGravity(alignment);
         previewRows.removeAllViews();
 
+        previewDayAnchor.setPadding(0, dp(draftDayTopDp), dp(draftDayEndDp), 0);
         previewDay.setText(ExamDay.label());
         previewDay.setTextColor(accent);
-        previewDay.setTextSize(5f);
-        for (int i = 0; i < RoomStore.activeRooms(this); i++) {
-            String original = RoomStore.name(this, i);
-            boolean missing = original.isEmpty();
-            String name = RoomStore.displayName(this, i);
-            if (missing) name = (i + 1) + "번 톡방 등록";
+        previewDay.setTextSize(draftDaySp);
+
+        compactPreviewFrame.setBackground(round(background, 15));
+        compactPreviewFrame.setPadding(dp(5), dp(3), dp(5), dp(3));
+        compactPreviewRows.setGravity(alignment);
+        compactPreviewRows.removeAllViews();
+
+        boolean hasAccess = WidgetUpdater.hasAccess(this);
+        boolean connected = NotificationWatcher.isConnected();
+        int active = RoomStore.activeRooms(this);
+        for (int i = 0; i < active; i++) {
+            boolean missing = RoomStore.name(this, i).isEmpty();
+            String name = missing ? (i + 1) + "번 톡방 등록"
+                    : RoomStore.displayName(this, i);
             int count = RoomStore.count(this, i);
-            String status = missing ? "" : !WidgetUpdater.hasAccess(this)
-                    ? "권한 필요" : !NotificationWatcher.isConnected()
-                    ? "연결 확인" : WidgetUpdater.countAndTime(this, i);
-            TextView line = text(name + (status.isEmpty() ? "" : " " + status),
-                    9 + RoomStore.fontScale(this), false);
-            line.setTextColor(missing ? muted : count > 0 ? accent : ink);
-            line.setGravity(alignment);
-            line.setSingleLine(true);
-            line.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            line.setIncludeFontPadding(false);
-            previewRows.addView(line, new LinearLayout.LayoutParams(-2, -2));
+            String status = missing ? "" : !hasAccess ? "권한 필요"
+                    : !connected ? "연결 확인" : WidgetUpdater.countAndTime(this, i);
+            String lineText = name + (status.isEmpty() ? "" : " " + status);
+            int color = missing ? muted : (count > 0 && hasAccess && connected ? accent : ink);
+
+            TextView wideLine = text(lineText, draftChatSp, false);
+            wideLine.setTextColor(color);
+            wideLine.setGravity(alignment);
+            wideLine.setSingleLine(true);
+            wideLine.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            wideLine.setIncludeFontPadding(false);
+            previewRows.addView(wideLine, new LinearLayout.LayoutParams(-2, -2));
+
+            String smallStatus = missing ? "" : !hasAccess ? "권한"
+                    : !connected ? "연결" : active <= 2
+                    ? WidgetUpdater.countAndTime(this, i)
+                    : count > 0 ? "×" + count : "없음";
+            TextView smallLine = text(name + (smallStatus.isEmpty() ? "" : " " + smallStatus),
+                    draftCompactSp, false);
+            smallLine.setTextColor(color);
+            smallLine.setGravity(alignment);
+            smallLine.setSingleLine(true);
+            smallLine.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            smallLine.setIncludeFontPadding(false);
+            compactPreviewRows.addView(smallLine, new LinearLayout.LayoutParams(-1, -2));
         }
     }
 
