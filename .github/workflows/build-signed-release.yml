@@ -72,9 +72,12 @@ jobs:
           signing_cert=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk")
           printf '%s\n' "$signing_cert"
           printf '%s\n' "$signing_cert" | grep -Fqi "fb74df2d46a6f9c0c140547e5fa1fecfb26c09f8d17fe13e375ab438d0017ae4"
-          package_info=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | grep "^package:")
-          printf '%s\n' "$package_info"
-          printf '%s\n' "$package_info" | grep -Fq "name='com.kyubang.kakaofocus.stable'"
+          # aapt dump badging may fail on framework-provided icon references,
+          # even for an otherwise valid signed APK. aapt2 reads the actual
+          # manifest package field without resolving the launcher icon.
+          package_name=$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump packagename "$apk")
+          printf 'Package: %s\n' "$package_name"
+          test "$package_name" = "com.kyubang.kakaofocus.stable"
           sha256sum "$apk"
       - name: Upload permanent-key signed APK (install only this artifact)
         uses: actions/upload-artifact@v4
