@@ -1,4 +1,25 @@
-# 카톡 한눈에 9 · v1.8
+# 카톡 한눈에 정식 · v2.0 — 앞으로 덮어쓰기 업데이트 지원
+
+## 업데이트 구조 (최초 1회 설정 필요)
+
+Android **applicationId를 `com.kyubang.kakaofocus.stable`로 고정**하고
+빌드 시 매번 다른 디버그 키를 사용하던 방식을 폐기했습니다.
+고정된 개인 Release 서명키로 만든 APK만 배포하도록 준비했습니다.
+
+- GitHub Workflow: **Build permanently signed update APK**
+- 아티팩트 이름: **`kakaofocus-STABLE-SIGNED-APK`**
+- 최신 릴리스 버전: **versionCode 10 / v2.0**
+- 앞으로는 app ID와 서명 인증서를 유지하고 versionCode만 올리면 덮어쓰기 업데이트 가능
+- 공개 GitHub 리포지토리에 키나 비밀번호를 넣지 않습니다.
+- **기존 카톡 한눈에 9는 임시 서명키를 사용했으므로** 정식판을 최초 한 번 새로 설치해야 합니다.
+- 9버전의 위젯 꾸미기에서 ZIP 백업을 저장하고 정식판에서 복원하세요.
+- **GitHub 저장소에 개인용 Secret `KAKAO_SIGNING_BUNDLE` 1개를 등록해야만
+  실제로 정식 서명 APK를 빌드할 수 있습니다.**
+- 설치 및 비밀값 설정은 [RELEASE_SIGNING_SETUP.md](RELEASE_SIGNING_SETUP.md)를 확인하세요.
+
+---
+
+# v1.8 기능 (정식판에도 유지)
 
 개인용 Android 위젯 앱입니다. 카카오톡 공식 앱은 아닙니다.
 
