@@ -73,18 +73,24 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- A separate small badge, never part of the centered chat text. -->
-    <TextView
-        android:id="@+id/exam_d_day"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="9dp"
-        android:layout_marginEnd="12dp"
-        android:gravity="end|top"
-        android:singleLine="true"
-        android:includeFontPadding="false"
-        android:textSize="5sp"
-        android:textColor="#FFB6DC"
-        android:text="수능 D-day"/>
+    <!-- Padding is updated from user sliders by RemoteViews.
+         The separate overlay never changes the centered chat layout. -->
+    <FrameLayout
+        android:id="@+id/exam_day_anchor"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingTop="9dp"
+        android:paddingEnd="12dp">
+        <TextView
+            android:id="@+id/exam_d_day"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:gravity="end|top"
+            android:singleLine="true"
+            android:includeFontPadding="false"
+            android:textSize="5sp"
+            android:textColor="#FFB6DC"
+            android:text="수능 D-day"/>
+    </FrameLayout>
 </FrameLayout>
