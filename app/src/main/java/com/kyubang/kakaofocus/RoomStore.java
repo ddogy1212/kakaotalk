@@ -28,6 +28,26 @@ final class RoomStore {
         return prefs(c).getString("room_" + index, "");
     }
 
+    /** Optional short widget-only label. Matching always uses name(), not displayName(). */
+    static String nickname(Context c, int index) {
+        return prefs(c).getString("nickname_" + index, "");
+    }
+
+    static String displayName(Context c, int index) {
+        String alias = nickname(c, index).trim();
+        return alias.isEmpty() ? name(c, index) : alias;
+    }
+
+    static void saveNicknames(Context c, String[] aliases) {
+        SharedPreferences.Editor editor = prefs(c).edit();
+        for (int i = 0; i < ROOM_COUNT; i++) {
+            String value = aliases != null && i < aliases.length && aliases[i] != null
+                    ? aliases[i].trim() : "";
+            editor.putString("nickname_" + i, value);
+        }
+        editor.apply();
+    }
+
     static int count(Context c, int index) {
         return prefs(c).getInt("count_" + index, 0);
     }
@@ -89,6 +109,8 @@ final class RoomStore {
             if (!value.equals(name(c, i))) {
                 editor.putInt("count_" + i, 0);
                 editor.putLong("last_message_" + i, 0L);
+                // Never leak a previous room's alias when the tracked room changes.
+                editor.putString("nickname_" + i, "");
             }
             editor.putString("room_" + i, value);
         }
