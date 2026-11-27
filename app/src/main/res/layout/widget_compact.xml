@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compact_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:paddingStart="5dp"
+    android:paddingEnd="5dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
+    android:background="@drawable/widget_bg">
+    <TextView android:id="@+id/compact_row_1"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center_vertical" android:singleLine="true"
+        android:ellipsize="end" android:includeFontPadding="false"
+        android:text="톡방 1" android:textColor="#FFFFFF" android:textSize="8sp" />
+    <TextView android:id="@+id/compact_row_2"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center_vertical" android:singleLine="true"
+        android:ellipsize="end" android:includeFontPadding="false"
+        android:text="톡방 2" android:textColor="#FFFFFF" android:textSize="8sp" />
+    <TextView android:id="@+id/compact_row_3"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center_vertical" android:singleLine="true"
+        android:ellipsize="end" android:includeFontPadding="false"
+        android:text="톡방 3" android:textColor="#FFFFFF" android:textSize="8sp" />
+    <TextView android:id="@+id/compact_row_4"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center_vertical" android:singleLine="true"
+        android:ellipsize="end" android:includeFontPadding="false"
+        android:text="톡방 4" android:textColor="#FFFFFF" android:textSize="8sp" />
+</LinearLayout>
