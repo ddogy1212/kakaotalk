@@ -84,6 +84,7 @@ final class WidgetUpdater {
     }
 
     static void updateAll(Context context) {
+        CompactWidgetProvider.updateAll(context);
         Context app = context.getApplicationContext();
         AppWidgetManager manager = AppWidgetManager.getInstance(app);
         int[] ids = manager.getAppWidgetIds(new ComponentName(app, WidgetProvider.class));
@@ -119,11 +120,15 @@ final class WidgetUpdater {
             if (active == 3 && heightDp < 44) sp = Math.min(sp, 9f);
             if (heightDp < 36) sp = Math.min(sp, 8f);
             if (heightDp < 30) sp = Math.min(sp, 7.5f);
-            int topBottom = active == 4 || heightDp < 42 ? 1 : 3;
+            int topBottom = active == 4 || heightDp < 42 ? 1 : 2;
             int textBudgetDp = Math.max(35, widthDp - inset * 2 - 4);
+            // Reserve room for the 2x1-only exam corner label.
+            if (active == 4 && heightDp < 56) sp = Math.min(sp, 7.5f);
 
             RemoteViews views = new RemoteViews(app.getPackageName(), R.layout.widget_small);
             views.setInt(R.id.widget_root, "setBackgroundResource", background);
+            views.setTextViewText(R.id.exam_d_day, ExamDay.label());
+            views.setTextColor(R.id.exam_d_day, alert);
             views.setViewPadding(R.id.widget_root, dp(app, inset), dp(app, topBottom),
                     dp(app, inset), dp(app, topBottom));
             boolean anyAlert = false;
