@@ -53,6 +53,7 @@ public final class MainActivity extends Activity {
     private TextView statusView, previewDay, titlesView, pauseStatus, minutesLabel;
     private FrameLayout previewView, previewDayAnchor, compactPreviewFrame;
     private LinearLayout previewPositioner, previewRows, compactPreviewRows;
+    private LinearLayout floatingPreviewDock, pageContainer;
     private ImageView pausePreview;
 
     // Draft changes affect previews only; persisted and pushed to widgets on Apply.
@@ -69,8 +70,23 @@ public final class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(dp(17), dp(25), dp(17), dp(25));
+        pageContainer = page;
         scroll.addView(page);
-        setContentView(scroll);
+
+        // Fixed design dock stays visible even when the slider list scrolls.
+        FrameLayout screen = new FrameLayout(this);
+        screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        floatingPreviewDock = new LinearLayout(this);
+        floatingPreviewDock.setOrientation(LinearLayout.VERTICAL);
+        floatingPreviewDock.setPadding(dp(12), dp(7), dp(12), dp(10));
+        floatingPreviewDock.setBackground(round(Color.rgb(255, 246, 251), 17));
+        floatingPreviewDock.setElevation(dp(8));
+        floatingPreviewDock.setVisibility(View.GONE);
+        FrameLayout.LayoutParams dockPlacement =
+                new FrameLayout.LayoutParams(-1, dp(144), Gravity.BOTTOM);
+        dockPlacement.setMargins(dp(10), 0, dp(10), dp(8));
+        screen.addView(floatingPreviewDock, dockPlacement);
+        setContentView(screen);
 
         TextView heading = text("카톡 한눈에 정식 💌", 26, true);
         heading.setTextColor(PINK);
@@ -200,10 +216,20 @@ public final class MainActivity extends Activity {
 
         addWithTop(widgetsPanel, text("🎨 실시간 위젯 편집기", 20, true), 0);
         addWithTop(widgetsPanel, text(
-                "슬라이더를 움직이면 아래 미리보기에 바로 반영돼. 실제 위젯은 맨 아래 '적용'을 누를 때만 바뀌어.",
+                "아래쪽에 미리보기가 고정돼 있어. 슬라이더를 움직이면 즉시 바뀌고, 실제 위젯은 '적용'을 누를 때만 저장돼.",
                 12, false), 7);
 
-        addWithTop(widgetsPanel, text("2×1 · 카톡 알림 + 수능 D-day", 14, true), 17);
+        TextView dockHeading = text("실시간 미리보기 · 2×1 / 1×1", 12, true);
+        dockHeading.setTextColor(PINK);
+        floatingPreviewDock.addView(dockHeading);
+        LinearLayout previewPair = new LinearLayout(this);
+        previewPair.setOrientation(LinearLayout.HORIZONTAL);
+        previewPair.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams pairPlacement =
+                new LinearLayout.LayoutParams(-1, dp(99));
+        pairPlacement.topMargin = dp(7);
+        floatingPreviewDock.addView(previewPair, pairPlacement);
+
         previewView = new FrameLayout(this);
         previewPositioner = new LinearLayout(this);
         previewPositioner.setGravity(Gravity.CENTER);
@@ -220,20 +246,20 @@ public final class MainActivity extends Activity {
         previewDayAnchor.addView(previewDay,
                 new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END));
         previewView.addView(previewDayAnchor, new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout.LayoutParams widePreview = new LinearLayout.LayoutParams(-1, dp(110));
-        widePreview.topMargin = dp(9);
-        widgetsPanel.addView(previewView, widePreview);
+        LinearLayout.LayoutParams widePreview =
+                new LinearLayout.LayoutParams(0, dp(94), 1f);
+        previewPair.addView(previewView, widePreview);
 
-        addWithTop(widgetsPanel, text("1×1 · 작은 카톡 알림", 14, true), 17);
         compactPreviewFrame = new FrameLayout(this);
         compactPreviewRows = new LinearLayout(this);
         compactPreviewRows.setOrientation(LinearLayout.VERTICAL);
         compactPreviewRows.setGravity(Gravity.CENTER);
         compactPreviewFrame.addView(compactPreviewRows,
                 new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout.LayoutParams smallPreview = new LinearLayout.LayoutParams(dp(126), dp(126));
-        smallPreview.topMargin = dp(8);
-        widgetsPanel.addView(compactPreviewFrame, smallPreview);
+        LinearLayout.LayoutParams smallPreview =
+                new LinearLayout.LayoutParams(dp(94), dp(94));
+        smallPreview.leftMargin = dp(8);
+        previewPair.addView(compactPreviewFrame, smallPreview);
 
         addWithTop(widgetsPanel, text("위젯 테마", 14, true), 19);
         Spinner themePicker = spinner(new String[]{"다크", "화이트", "반투명"}, draftTheme);
@@ -688,6 +714,10 @@ public final class MainActivity extends Activity {
         roomsPanel.setVisibility(chosen == 0 ? View.VISIBLE : View.GONE);
         widgetsPanel.setVisibility(chosen == 1 ? View.VISIBLE : View.GONE);
         focusPanel.setVisibility(chosen == 2 ? View.VISIBLE : View.GONE);
+        if (floatingPreviewDock != null)
+            floatingPreviewDock.setVisibility(chosen == 1 ? View.VISIBLE : View.GONE);
+        if (pageContainer != null)
+            pageContainer.setPadding(dp(17), dp(25), dp(17), dp(chosen == 1 ? 166 : 25));
         Button[] tabs = {roomsTab, widgetsTab, focusTab};
         for (int i = 0; i < tabs.length; i++) {
             tabs[i].setBackground(round(i == chosen ? PINK : Color.WHITE, 12));
