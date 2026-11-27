@@ -1,8 +1,17 @@
 package com.kyubang.kakaofocus;
 
+import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.RemoteViews;
 
 public final class CompactWidgetProvider extends AppWidgetProvider {
     @Override public void onEnabled(Context context) {
@@ -13,15 +22,79 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
     @Override public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
         RecoveryScheduler.scheduleIfWidgets(context);
         NotificationWatcher.reconnectIfNeeded(context);
-        WidgetUpdater.updateAll(context);
+        updateAll(context);
     }
 
     @Override public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager,
                                                     int id, android.os.Bundle options) {
-        WidgetUpdater.updateAll(context);
+        updateAll(context);
     }
 
     @Override public void onDisabled(Context context) {
         RecoveryScheduler.scheduleIfWidgets(context);
+    }
+
+    static void updateAll(Context context) {
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        int[] ids = manager.getAppWidgetIds(new ComponentName(context, CompactWidgetProvider.class));
+        if (ids == null || ids.length == 0) return;
+        boolean granted = WidgetUpdater.hasAccess(context);
+        boolean connected = NotificationWatcher.isConnected();
+        int active = RoomStore.activeRooms(context);
+        int theme = RoomStore.theme(context);
+        int bg = theme == 1 ? R.drawable.widget_bg_light
+                : theme == 2 ? R.drawable.widget_bg_translucent : R.drawable.widget_bg;
+        int ink = theme == 1 ? Color.rgb(51, 38, 52) : Color.WHITE;
+        int accent = theme == 1 ? Color.rgb(178, 49, 113) : Color.rgb(255, 182, 220);
+        float sp = active <= 2 ? 9f : active == 3 ? 8f : 7f;
+        int[] rows = {R.id.compact_row_1, R.id.compact_row_2,
+                R.id.compact_row_3, R.id.compact_row_4};
+        Bitmap bitmap = PhotoStore.bitmap(context, false);
+        boolean photo = bitmap != null;
+
+        for (int id : ids) {
+            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_compact);
+            views.setInt(R.id.compact_root, "setBackgroundResource", bg);
+            views.setViewVisibility(R.id.compact_photo, photo ? View.VISIBLE : View.GONE);
+            if (photo) views.setImageViewBitmap(R.id.compact_photo, bitmap);
+            views.setInt(R.id.compact_rows, "setBackgroundColor",
+                    photo ? Color.argb(105, 0, 0, 0) : Color.TRANSPARENT);
+            boolean anyAlert = false;
+            for (int i = 0; i < rows.length; i++) {
+                views.setViewVisibility(rows[i], i < active ? View.VISIBLE : View.GONE);
+                if (i >= active) continue;
+                String name = RoomStore.name(context, i);
+                int count = RoomStore.count(context, i);
+                String label;
+                if (name.isEmpty()) {
+                    label = (i + 1) + "번 방 등록";
+                } else if (!granted) {
+                    label = name + " 권한 필요";
+                } else if (!connected) {
+                    label = name + " 연결 확인";
+                } else {
+                    // When very small, omit time to keep the count legible.
+                    label = name + " " + (active <= 2
+                            ? WidgetUpdater.countAndTime(context, i)
+                            : count > 0 ? "×" + count : "없음");
+                    if (count > 0) anyAlert = true;
+                }
+                views.setTextViewText(rows[i], label);
+                views.setTextColor(rows[i], photo ? Color.WHITE :
+                        count > 0 && connected && granted ? accent : ink);
+                views.setTextViewTextSize(rows[i], TypedValue.COMPLEX_UNIT_SP, sp);
+                views.setInt(rows[i], "setGravity",
+                        Gravity.CENTER_VERTICAL | WidgetUpdater.horizontalGravity(context));
+            }
+            Intent intent = anyAlert
+                    ? context.getPackageManager().getLaunchIntentForPackage("com.kakao.talk") : null;
+            if (intent == null) intent = new Intent(context, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            PendingIntent open = PendingIntent.getActivity(context, 420, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            views.setOnClickPendingIntent(R.id.compact_root, open);
+            manager.updateAppWidget(id, views);
+        }
+        if (bitmap != null) bitmap.recycle();
     }
 }
