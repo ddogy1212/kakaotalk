@@ -3,13 +3,16 @@ package com.kyubang.kakaofocus;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipData;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.provider.Settings;
+import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.AdapterView;
@@ -30,7 +33,7 @@ import java.util.Set;
 
 public final class MainActivity extends Activity {
     private static final int CHOOSE_PAUSE_IMAGE = 2071;
-    private static final int CHOOSE_COMPACT_IMAGE = 2072;
+    private static final int EDIT_PAUSE_IMAGE = 2073;
     private static final int INK = Color.rgb(54, 35, 49);
     private static final int MUTED = Color.rgb(117, 87, 107);
     private static final int PINK = Color.rgb(196, 60, 127);
@@ -40,7 +43,7 @@ public final class MainActivity extends Activity {
     private Button roomsTab, widgetsTab, focusTab;
     private Spinner roomCount;
     private TextView statusView, previewView, titlesView, pauseStatus, minutesLabel;
-    private ImageView pausePreview, compactPreview;
+    private ImageView pausePreview;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -55,7 +58,7 @@ public final class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 7 💌", 26, true);
+        TextView heading = text("카톡 한눈에 8 💌", 26, true);
         heading.setTextColor(PINK);
         page.addView(heading);
         addWithTop(page, text("알림은 간단하게, 카톡 확인은 내가 정한 시간에.", 13, false), 6);
@@ -172,18 +175,7 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, "디자인을 적용했어!", Toast.LENGTH_SHORT).show();
         });
 
-        addWithTop(widgetsPanel, text("1×1 알림 위젯 사진", 16, true), 19);
-        addWithTop(widgetsPanel, text("사진을 배경으로 깔고 그 위에 톡방 알림을 표시해. 안 고르면 기본 배경이야.", 12, false), 5);
-        compactPreview = photoPreview();
-        addWithTop(widgetsPanel, compactPreview, 9);
-        Button chooseCompact = addButton(widgetsPanel, "🖼️ 알림 위젯 사진 선택", false);
-        chooseCompact.setOnClickListener(v -> pickPhoto(CHOOSE_COMPACT_IMAGE));
-        Button clearCompact = addButton(widgetsPanel, "알림 위젯 사진 초기화", false);
-        clearCompact.setOnClickListener(v -> {
-            PhotoStore.remove(this, false);
-            CompactWidgetProvider.updateAll(this);
-            refreshUI();
-        });
+        addWithTop(widgetsPanel, text("1×1 알림 위젯은 사진 없이 기존 디자인으로 표시돼.", 13, false), 16);
 
         addWithTop(widgetsPanel, text("2×1 위젯 미리보기", 16, true), 19);
         previewView = text("", 12, false);
@@ -221,14 +213,14 @@ public final class MainActivity extends Activity {
         addWithTop(focusPanel, pauseStatus, 12);
 
         addWithTop(focusPanel, text("차단 위젯 사진", 16, true), 19);
-        addWithTop(focusPanel, text("평소에는 사진만 보여주고, 차단 중에는 남은 시간이 사진 위에 표시돼.", 12, false), 5);
+        addWithTop(focusPanel, text("갤러리에서 사진을 고르고 확대·이동·회전·영역 선택으로 자유롭게 잘라 적용해. 차단 중엔 사진 위에 남은 시간이 보여.", 12, false), 5);
         pausePreview = photoPreview();
         addWithTop(focusPanel, pausePreview, 9);
-        Button choosePause = addButton(focusPanel, "🖼️ 차단 위젯 사진 선택", false);
-        choosePause.setOnClickListener(v -> pickPhoto(CHOOSE_PAUSE_IMAGE));
-        Button clearPause = addButton(focusPanel, "차단 위젯 사진 초기화", false);
+        Button choosePause = addButton(focusPanel, "🖼️ 갤러리에서 사진 선택 · 편집", false);
+        choosePause.setOnClickListener(v -> pickPhoto());
+        Button clearPause = addButton(focusPanel, "위젯 사진 초기화", false);
         clearPause.setOnClickListener(v -> {
-            PhotoStore.remove(this, true);
+            PhotoStore.remove(this);
             PauseWidgetProvider.updateAll(this);
             refreshUI();
         });
@@ -246,26 +238,34 @@ public final class MainActivity extends Activity {
                 + "이 권한은 신뢰하는 앱에만 부여해 줘.", 11, false), 9);
     }
 
-    private void pickPhoto(int requestCode) {
-        Intent gallery = new Intent(Intent.ACTION_GET_CONTENT);
+    private void pickPhoto() {
+        Intent gallery;
+        if (Build.VERSION.SDK_INT >= 33) {
+            gallery = new Intent(MediaStore.ACTION_PICK_IMAGES);
+        } else {
+            gallery = new Intent(Intent.ACTION_GET_CONTENT);
+            gallery.addCategory(Intent.CATEGORY_OPENABLE);
+        }
         gallery.setType("image/*");
-        gallery.addCategory(Intent.CATEGORY_OPENABLE);
-        startActivityForResult(Intent.createChooser(gallery, "위젯에 넣을 사진 선택"), requestCode);
+        gallery.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(Intent.createChooser(gallery, "갤러리에서 사진 선택"), CHOOSE_PAUSE_IMAGE);
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        if (requestCode != CHOOSE_PAUSE_IMAGE && requestCode != CHOOSE_COMPACT_IMAGE) return;
-        boolean pause = requestCode == CHOOSE_PAUSE_IMAGE;
-        boolean success = PhotoStore.save(this, data.getData(), pause);
-        if (success) {
+        if (resultCode != RESULT_OK) return;
+        if (requestCode == CHOOSE_PAUSE_IMAGE) {
+            if (data == null || data.getData() == null) return;
+            Uri selected = data.getData();
+            Intent edit = new Intent(this, CropActivity.class);
+            edit.setDataAndType(selected, "image/*");
+            edit.setClipData(ClipData.newUri(getContentResolver(), "선택한 위젯 사진", selected));
+            edit.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(edit, EDIT_PAUSE_IMAGE);
+        } else if (requestCode == EDIT_PAUSE_IMAGE) {
             PauseWidgetProvider.updateAll(this);
-            CompactWidgetProvider.updateAll(this);
             refreshUI();
         }
-        Toast.makeText(this, success ? "사진을 위젯에 적용했어!" :
-                "사진을 처리하지 못했어. 다른 사진으로 다시 시도해줘.", Toast.LENGTH_LONG).show();
     }
 
     @Override protected void onResume() {
@@ -293,8 +293,7 @@ public final class MainActivity extends Activity {
             } else pauseStatus.setText("준비 완료 · 위젯을 누르면 "
                     + PauseState.durationMinutes(this) + "분 제한");
         }
-        if (pausePreview != null) updatePhotoPreview(pausePreview, true);
-        if (compactPreview != null) updatePhotoPreview(compactPreview, false);
+        if (pausePreview != null) updatePhotoPreview(pausePreview);
         renderPreview();
         updateTitles();
     }
@@ -473,8 +472,8 @@ public final class MainActivity extends Activity {
         return view;
     }
 
-    private void updatePhotoPreview(ImageView view, boolean pause) {
-        Bitmap picture = PhotoStore.bitmap(this, pause);
+    private void updatePhotoPreview(ImageView view) {
+        Bitmap picture = PhotoStore.bitmap(this);
         if (picture == null) view.setImageResource(android.R.drawable.ic_menu_gallery);
         else view.setImageBitmap(picture);
     }
