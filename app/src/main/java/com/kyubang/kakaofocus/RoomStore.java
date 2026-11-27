@@ -56,10 +56,21 @@ final class RoomStore {
         return Math.max(0, Math.min(2, prefs(c).getInt("widget_font", 1)));
     }
 
-    static void saveAppearance(Context c, int theme, int fontScale) {
+    static int align(Context c) {
+        return Math.max(0, Math.min(2, prefs(c).getInt("widget_align", 0)));
+    }
+
+    /** 0 = 10dp, 1 = 14dp, 2 = 18dp. Default to middle for rounded LockStar corners. */
+    static int inset(Context c) {
+        return Math.max(0, Math.min(2, prefs(c).getInt("widget_inset", 1)));
+    }
+
+    static void saveAppearance(Context c, int theme, int fontScale, int align, int inset) {
         prefs(c).edit()
                 .putInt("widget_theme", Math.max(0, Math.min(2, theme)))
                 .putInt("widget_font", Math.max(0, Math.min(2, fontScale)))
+                .putInt("widget_align", Math.max(0, Math.min(2, align)))
+                .putInt("widget_inset", Math.max(0, Math.min(2, inset)))
                 .apply();
     }
 
