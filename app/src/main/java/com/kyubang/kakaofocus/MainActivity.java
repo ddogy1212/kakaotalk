@@ -616,7 +616,7 @@ public final class MainActivity extends Activity {
             String smallStatus = missing ? "" : !hasAccess ? "권한"
                     : !connected ? "연결" : active <= 2
                     ? WidgetUpdater.countAndTime(this, i)
-                    : count > 0 ? "×" + count : "없음";
+                    : count > 0 ? "×" + count : "x0";
             TextView smallLine = text(name + (smallStatus.isEmpty() ? "" : " " + smallStatus),
                     draftCompactSp, false);
             smallLine.setTextColor(color);
