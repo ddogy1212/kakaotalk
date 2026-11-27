@@ -7,7 +7,12 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
+import android.os.Bundle;
+import android.text.TextPaint;
+import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.widget.RemoteViews;
 
 import java.text.SimpleDateFormat;
@@ -43,6 +48,40 @@ final class WidgetUpdater {
                 + (when.isEmpty() ? "" : " · " + when);
     }
 
+    static int insetDp(Context context) {
+        return 10 + RoomStore.inset(context) * 4;
+    }
+
+    static int horizontalGravity(Context context) {
+        int align = RoomStore.align(context);
+        return align == 1 ? Gravity.CENTER_HORIZONTAL
+                : align == 2 ? Gravity.RIGHT : Gravity.LEFT;
+    }
+
+    private static int dp(Context c, float amount) {
+        return Math.round(amount * c.getResources().getDisplayMetrics().density);
+    }
+
+    /** Keep the notification number/time visible even when a chat title is long. */
+    private static String fitLine(Context c, String name, String status,
+                                  float sp, int availableDp) {
+        if (status.isEmpty()) return name;
+        TextPaint paint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
+        DisplayMetrics dm = c.getResources().getDisplayMetrics();
+        paint.setTextSize(sp * dm.scaledDensity);
+        float budget = Math.max(25, availableDp) * dm.density;
+        String tail = "  " + status;
+        if (paint.measureText(tail) > budget && status.contains(" · ")) {
+            status = status.substring(0, status.indexOf(" · "));
+            tail = "  " + status;
+        }
+        // Never let a long room title push the status beyond the rounded frame.
+        float roomBudget = Math.max(0, budget - paint.measureText(tail) - dp(c, 1));
+        CharSequence roomFit = TextUtils.ellipsize(name, paint, roomBudget,
+                TextUtils.TruncateAt.END);
+        return roomFit + tail;
+    }
+
     static void updateAll(Context context) {
         Context app = context.getApplicationContext();
         AppWidgetManager manager = AppWidgetManager.getInstance(app);
@@ -51,46 +90,63 @@ final class WidgetUpdater {
 
         boolean granted = hasAccess(app);
         boolean connected = NotificationWatcher.isConnected();
-        int[] names = {R.id.room_name_1, R.id.room_name_2, R.id.room_name_3};
-        int[] statuses = {R.id.room_status_1, R.id.room_status_2, R.id.room_status_3};
+        int[] rows = {R.id.room_row_1, R.id.room_row_2, R.id.room_row_3};
         int theme = RoomStore.theme(app);
         int background = theme == 1 ? R.drawable.widget_bg_light
                 : theme == 2 ? R.drawable.widget_bg_translucent : R.drawable.widget_bg;
         int ink = theme == 1 ? Color.rgb(51, 38, 52) : Color.rgb(240, 235, 243);
         int muted = theme == 1 ? Color.rgb(115, 104, 118) : Color.rgb(183, 174, 190);
         int alert = theme == 1 ? Color.rgb(177, 43, 105) : Color.rgb(255, 182, 220);
-        float size = 9f + RoomStore.fontScale(app);
+        int inset = insetDp(app);
+        int gravity = Gravity.CENTER_VERTICAL | horizontalGravity(app);
 
         for (int widgetId : ids) {
+            Bundle options = manager.getAppWidgetOptions(widgetId);
+            // Some lock-screen hosts report different widget bounds from the launcher.
+            int widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 110);
+            int heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 48);
+            if (widthDp <= 0) widthDp = 110;
+            if (heightDp <= 0) heightDp = 48;
+            widthDp = Math.max(65, widthDp);
+
+            // Three rows must fit even in the short LockStar frame.
+            float sp = 9f + RoomStore.fontScale(app);
+            if (heightDp < 44) sp = Math.min(sp, 9f);
+            if (heightDp < 36) sp = Math.min(sp, 8f);
+            if (heightDp < 30) sp = Math.min(sp, 7.5f);
+            int topBottom = heightDp < 42 ? 1 : 3;
+            int textBudgetDp = Math.max(35, widthDp - inset * 2 - 4);
+
             RemoteViews views = new RemoteViews(app.getPackageName(), R.layout.widget_small);
             views.setInt(R.id.widget_root, "setBackgroundResource", background);
+            views.setViewPadding(R.id.widget_root, dp(app, inset), dp(app, topBottom),
+                    dp(app, inset), dp(app, topBottom));
             boolean anyAlert = false;
             for (int i = 0; i < RoomStore.ROOM_COUNT; i++) {
                 String room = RoomStore.name(app, i);
                 int count = RoomStore.count(app, i);
-                String caption;
+                String name;
                 String status;
                 if (room.isEmpty()) {
-                    caption = (i + 1) + "번 톡방 등록";
+                    name = (i + 1) + "번 톡방 등록";
                     status = "";
                 } else if (!granted) {
-                    caption = room;
+                    name = room;
                     status = "권한 필요";
                 } else if (!connected) {
-                    caption = room;
+                    name = room;
                     status = "연결 확인";
                 } else {
-                    caption = room;
+                    name = room;
                     status = countAndTime(app, i);
                     if (count > 0) anyAlert = true;
                 }
-                views.setTextViewText(names[i], caption);
-                views.setTextViewText(statuses[i], status);
-                views.setTextColor(names[i], ink);
-                views.setTextColor(statuses[i],
-                        count > 0 && connected && granted ? alert : muted);
-                views.setTextViewTextSize(names[i], TypedValue.COMPLEX_UNIT_SP, size);
-                views.setTextViewTextSize(statuses[i], TypedValue.COMPLEX_UNIT_SP, Math.max(8f, size - 1f));
+                String displayed = fitLine(app, name, status, sp, textBudgetDp);
+                views.setTextViewText(rows[i], displayed);
+                views.setTextColor(rows[i], count > 0 && connected && granted ? alert
+                        : (room.isEmpty() ? muted : ink));
+                views.setTextViewTextSize(rows[i], TypedValue.COMPLEX_UNIT_SP, sp);
+                views.setInt(rows[i], "setGravity", gravity);
             }
 
             Intent destination = anyAlert
