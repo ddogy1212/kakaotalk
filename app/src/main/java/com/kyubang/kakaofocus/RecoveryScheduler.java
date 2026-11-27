@@ -19,7 +19,8 @@ final class RecoveryScheduler {
     static void scheduleIfWidgets(Context context) {
         AppWidgetManager wm = AppWidgetManager.getInstance(context);
         int[] ids = wm.getAppWidgetIds(new ComponentName(context, WidgetProvider.class));
-        if (ids == null || ids.length == 0) {
+        int[] mini = wm.getAppWidgetIds(new ComponentName(context, CompactWidgetProvider.class));
+        if ((ids == null || ids.length == 0) && (mini == null || mini.length == 0)) {
             cancel(context);
             return;
         }
