@@ -5,12 +5,14 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.Parcelable;
+import android.os.SystemClock;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
 public class NotificationWatcher extends NotificationListenerService {
     private static final String KAKAO_PACKAGE = "com.kakao.talk";
     private static volatile NotificationWatcher current;
+    private static volatile long lastRebindElapsed;
 
     static boolean isConnected() {
         return current != null;
@@ -21,13 +23,16 @@ public class NotificationWatcher extends NotificationListenerService {
         NotificationWatcher listener = current;
         if (listener == null) return false;
         listener.refreshSnapshot();
-        return true;
+        return isConnected();
     }
 
     /** System-owned notification listeners cannot be started as regular services. */
     static boolean reconnectIfNeeded(Context context) {
         if (refreshConfiguredRooms()) return true;
         if (!WidgetUpdater.hasAccess(context)) return false;
+        long now = SystemClock.elapsedRealtime();
+        if (lastRebindElapsed != 0 && now - lastRebindElapsed < 30_000L) return false;
+        lastRebindElapsed = now;
         try {
             requestRebind(new ComponentName(context, NotificationWatcher.class));
         } catch (RuntimeException ignored) {
@@ -39,6 +44,7 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onListenerConnected() {
         super.onListenerConnected();
         current = this;
+        lastRebindElapsed = 0;
         RoomStore.setConnected(this, true);
         refreshSnapshot();
     }
