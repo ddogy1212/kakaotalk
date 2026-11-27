@@ -50,7 +50,7 @@ final class WidgetUpdater {
     }
 
     static int insetDp(Context context) {
-        return 10 + RoomStore.inset(context) * 4;
+        return RoomStore.safeInsetDp(context);
     }
 
     static int horizontalGravity(Context context) {
@@ -112,18 +112,11 @@ final class WidgetUpdater {
             if (heightDp <= 0) heightDp = 48;
             widthDp = Math.max(65, widthDp);
 
-            // Adjust typography to the selected number of rows and reported LockStar size.
-            // The host can still crop a widget if its frame is smaller than Android reports.
-            float sp = 9f + RoomStore.fontScale(app);
-            if (active == 4 && heightDp <= 55) sp = Math.min(sp, 8f);
-            if (active == 4 && heightDp < 42) sp = Math.min(sp, 7.5f);
-            if (active == 3 && heightDp < 44) sp = Math.min(sp, 9f);
-            if (heightDp < 36) sp = Math.min(sp, 8f);
-            if (heightDp < 30) sp = Math.min(sp, 7.5f);
+            // User controls font size explicitly. No silent scaling after Apply:
+            // the preview and widget use the same selected value.
+            float sp = RoomStore.chatSp(app);
             int topBottom = active == 4 || heightDp < 42 ? 1 : 2;
             int textBudgetDp = Math.max(35, widthDp - inset * 2 - 4);
-            // Reserve room for the 2x1-only exam corner label.
-            if (active == 4 && heightDp < 56) sp = Math.min(sp, 7.5f);
 
             RemoteViews views = new RemoteViews(app.getPackageName(), R.layout.widget_small);
             views.setInt(R.id.widget_root, "setBackgroundResource", background);
@@ -135,6 +128,10 @@ final class WidgetUpdater {
                     Gravity.CENTER_VERTICAL | horizontalGravity(app));
             views.setTextViewText(R.id.exam_d_day, ExamDay.label());
             views.setTextColor(R.id.exam_d_day, alert);
+            views.setTextViewTextSize(R.id.exam_d_day,
+                    TypedValue.COMPLEX_UNIT_SP, RoomStore.daySp(app));
+            views.setViewPadding(R.id.exam_day_anchor, 0, dp(app, RoomStore.dayTopDp(app)),
+                    dp(app, RoomStore.dayEndDp(app)), 0);
             views.setViewPadding(R.id.widget_root, dp(app, inset), dp(app, topBottom),
                     dp(app, inset), dp(app, topBottom));
             boolean anyAlert = false;
