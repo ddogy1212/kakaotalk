@@ -103,6 +103,8 @@ public class NotificationWatcher extends NotificationListenerService {
                     }
                     if (match) {
                         counts[i] = Math.min(999, counts[i] + estimateCount(extras));
+                        // Keep only the most recent notification timestamp, never message text.
+                        RoomStore.noteMessageAt(this, i, sbn.getPostTime());
                         break;
                     }
                 }
