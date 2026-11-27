@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -100,6 +102,37 @@ public class MainActivity extends Activity {
         addWithTop(layout, save, 16);
         save.setOnClickListener(v -> saveRooms());
 
+        addWithTop(layout, text("🎨 3. 위젯 디자인", 18, true), 24);
+        addWithTop(layout, text("2×1 크기는 유지하면서 색상과 글자 크기만 바꿔.", 13, false), 7);
+
+        Spinner themePicker = new Spinner(this);
+        ArrayAdapter<String> themeItems = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"다크 · 검은색", "화이트 · 흰색", "반투명 · 어두운색"});
+        themeItems.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        themePicker.setAdapter(themeItems);
+        themePicker.setSelection(RoomStore.theme(this));
+        addWithTop(layout, themePicker, 8);
+
+        Spinner sizePicker = new Spinner(this);
+        ArrayAdapter<String> sizeItems = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"작게 · 9sp", "보통 · 10sp", "크게 · 11sp"});
+        sizeItems.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sizePicker.setAdapter(sizeItems);
+        sizePicker.setSelection(RoomStore.fontScale(this));
+        addWithTop(layout, sizePicker, 8);
+
+        Button applyTheme = button("위젯 디자인 적용");
+        addWithTop(layout, applyTheme, 9);
+        applyTheme.setOnClickListener(v -> {
+            RoomStore.saveAppearance(this, themePicker.getSelectedItemPosition(),
+                    sizePicker.getSelectedItemPosition());
+            WidgetUpdater.updateAll(this);
+            renderStatus();
+            Toast.makeText(this, "위젯 색상과 글자 크기를 적용했어!", Toast.LENGTH_SHORT).show();
+        });
+
         addWithTop(layout, text("📱 위젯 표시 미리보기", 18, true), 24);
         previewView = text("", 15, false);
         previewView.setPadding(dp(14), dp(12), dp(14), dp(12));
@@ -113,7 +146,7 @@ public class MainActivity extends Activity {
 
         addWithTop(layout, text(
                 "감지가 멈췄다면 '새로고침'을 누르고, 설정에서 배터리 사용을 '제한 없음'으로 변경해 주세요. "
-                + "알림 접근 권한을 껐다가 다시 켜는 것도 도움이 됩니다.\\n\\n"
+                + "알림 접근 권한을 껐다가 다시 켜는 것도 도움이 됩니다.\n\n"
                 + "알림 숫자는 현재 휴대폰에 남아 있는 알림 기준의 추정치예요. "
                 + "실제 안 읽은 메시지 수와 다를 수 있어요. "
                 + "알림이 지워지거나, 채팅방 이름이 알림에 없으면 감지하지 못할 수 있어요.\n\n"
@@ -124,6 +157,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        RecoveryScheduler.scheduleIfWidgets(this);
         NotificationWatcher.reconnectIfNeeded(this);
         renderStatus();
     }
@@ -186,14 +220,19 @@ public class MainActivity extends Activity {
                 : "… 감지 서비스 연결 끊김 · 새로고침을 눌러줘");
         statusView.setTextColor(!granted ? Color.rgb(181, 79, 64) : pink);
 
+        int selectedTheme = RoomStore.theme(this);
+        int bg = selectedTheme == 1 ? Color.rgb(255, 249, 252)
+                : selectedTheme == 2 ? Color.rgb(77, 69, 82) : Color.rgb(41, 36, 47);
+        previewView.setBackgroundColor(bg);
+        previewView.setTextColor(selectedTheme == 1 ? ink : Color.WHITE);
+        previewView.setTextSize(10f + RoomStore.fontScale(this));
         StringBuilder preview = new StringBuilder();
         for (int i = 0; i < RoomStore.ROOM_COUNT; i++) {
             String name = RoomStore.name(this, i);
             if (name.isEmpty()) name = (i + 1) + "번째 톡방 미등록";
-            int count = RoomStore.count(this, i);
-            preview.append(!granted ? name + ": 권한 필요" :
-                    !connected ? name + ": 감지 대기 중" :
-                    count > 0 ? name + "에서 알림 ×" + count : name + ": 알림 없음");
+            preview.append(name).append("    ");
+            preview.append(!granted ? "권한 필요" :
+                    !connected ? "연결 확인" : WidgetUpdater.countAndTime(this, i));
             if (i < RoomStore.ROOM_COUNT - 1) preview.append("\n");
         }
         previewView.setText(preview.toString());
