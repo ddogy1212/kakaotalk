@@ -19,6 +19,18 @@ final class PauseState {
                 Math.max(1, Math.min(60, minutes))).apply();
         PauseWidgetProvider.updateAll(context);
     }
+    /** While active: 0 = full countdown, 1 = tiny countdown, 2 = picture only. */
+    static int displayMode(Context context) {
+        return Math.max(0, Math.min(2, prefs(context).getInt("pause_display_mode", 0)));
+    }
+
+    static void saveDisplayMode(Context context, int value) {
+        prefs(context).edit()
+                .putInt("pause_display_mode", Math.max(0, Math.min(2, value)))
+                .apply();
+        PauseWidgetProvider.updateAll(context);
+    }
+
     private PauseState() {}
 
     private static SharedPreferences prefs(Context context) {
