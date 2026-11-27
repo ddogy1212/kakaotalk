@@ -9,11 +9,19 @@ import java.util.List;
 /** Only room names, estimated counts, and observed notification TITLES are saved locally. */
 final class RoomStore {
     private static final String PREF = "focus_widget_local";
-    static final int ROOM_COUNT = 3;
+    static final int ROOM_COUNT = 4;
     private RoomStore() {}
 
     private static SharedPreferences prefs(Context c) {
         return c.getApplicationContext().getSharedPreferences(PREF, Context.MODE_PRIVATE);
+    }
+
+    static int activeRooms(Context c) {
+        return Math.max(1, Math.min(ROOM_COUNT, prefs(c).getInt("active_rooms", 3)));
+    }
+
+    static void saveActiveRooms(Context c, int value) {
+        prefs(c).edit().putInt("active_rooms", Math.max(1, Math.min(ROOM_COUNT, value))).apply();
     }
 
     static String name(Context c, int index) {
