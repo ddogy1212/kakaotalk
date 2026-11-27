@@ -45,7 +45,7 @@ final class WidgetUpdater {
     static String countAndTime(Context context, int index) {
         int count = RoomStore.count(context, index);
         String when = timeLabel(RoomStore.lastMessageAt(context, index));
-        return (count > 0 ? "×" + count : "없음")
+        return (count > 0 ? "×" + count : "x0")
                 + (when.isEmpty() ? "" : " · " + when);
     }
 
