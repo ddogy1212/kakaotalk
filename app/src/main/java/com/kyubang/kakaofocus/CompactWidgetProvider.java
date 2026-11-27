@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -49,16 +48,9 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
         float sp = active <= 2 ? 9f : active == 3 ? 8f : 7f;
         int[] rows = {R.id.compact_row_1, R.id.compact_row_2,
                 R.id.compact_row_3, R.id.compact_row_4};
-        Bitmap bitmap = PhotoStore.bitmap(context, false);
-        boolean photo = bitmap != null;
-
         for (int id : ids) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_compact);
             views.setInt(R.id.compact_root, "setBackgroundResource", bg);
-            views.setViewVisibility(R.id.compact_photo, photo ? View.VISIBLE : View.GONE);
-            if (photo) views.setImageViewBitmap(R.id.compact_photo, bitmap);
-            views.setInt(R.id.compact_rows, "setBackgroundColor",
-                    photo ? Color.argb(105, 0, 0, 0) : Color.TRANSPARENT);
             boolean anyAlert = false;
             for (int i = 0; i < rows.length; i++) {
                 views.setViewVisibility(rows[i], i < active ? View.VISIBLE : View.GONE);
@@ -80,7 +72,7 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
                     if (count > 0) anyAlert = true;
                 }
                 views.setTextViewText(rows[i], label);
-                views.setTextColor(rows[i], photo ? Color.WHITE :
+                views.setTextColor(rows[i],
                         count > 0 && connected && granted ? accent : ink);
                 views.setTextViewTextSize(rows[i], TypedValue.COMPLEX_UNIT_SP, sp);
                 views.setInt(rows[i], "setGravity",
@@ -95,6 +87,5 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
             views.setOnClickPendingIntent(R.id.compact_root, open);
             manager.updateAppWidget(id, views);
         }
-        if (bitmap != null) bitmap.recycle();
     }
 }
