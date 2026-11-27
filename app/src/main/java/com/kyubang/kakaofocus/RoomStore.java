@@ -104,6 +104,30 @@ final class RoomStore {
         editor.apply();
     }
 
+    static List<String> notificationMetadata(Context c) {
+        List<String> entries = new ArrayList<>();
+        try {
+            JSONArray array = new JSONArray(prefs(c).getString("notification_metadata", "[]"));
+            for (int i = 0; i < array.length(); i++) {
+                String value = array.optString(i, "");
+                if (!value.isEmpty()) entries.add(value);
+            }
+        } catch (Exception ignored) {}
+        return entries;
+    }
+
+    /** Store metadata labels only: never a message body, sender message or conversation text. */
+    static void rememberNotificationMetadata(Context c, String summary) {
+        if (summary == null || summary.trim().isEmpty()) return;
+        String line = summary.trim().replace("\\n", " ").replace("\\r", " ");
+        List<String> recent = notificationMetadata(c);
+        recent.remove(line);
+        recent.add(0, line);
+        JSONArray data = new JSONArray();
+        for (int i = 0; i < Math.min(12, recent.size()); i++) data.put(recent.get(i));
+        prefs(c).edit().putString("notification_metadata", data.toString()).apply();
+    }
+
     static List<String> observedTitles(Context c) {
         List<String> titles = new ArrayList<>();
         try {
