@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
         scroll.addView(layout);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 5 💌", 25, true);
+        TextView heading = text("카톡 한눈에 6 💌", 25, true);
         heading.setTextColor(pink);
         layout.addView(heading);
 
@@ -119,6 +119,10 @@ public class MainActivity extends Activity {
         addWithTop(layout, pick, 6);
         pick.setOnClickListener(v -> showRecentPicker());
 
+        Button groupInfo = button("🔍 단톡방 감지 정보 확인");
+        addWithTop(layout, groupInfo, 4);
+        groupInfo.setOnClickListener(v -> showGroupDiagnostics());
+
         Button save = button("선택한 채팅방 저장");
         addWithTop(layout, save, 16);
         save.setOnClickListener(v -> saveRooms());
@@ -183,7 +187,8 @@ public class MainActivity extends Activity {
         previewView.setBackgroundColor(Color.rgb(239, 231, 241));
         addWithTop(layout, previewView, 8);
 
-        addWithTop(layout, text("최근 확인된 카톡 알림 제목", 16, true), 24);
+        addWithTop(layout, text("최근 확인된 알림의 이름 후보", 16, true), 24);
+        addWithTop(layout, text("단톡방에서는 보낸 사람 이름과 채팅방 이름이 다를 수 있어. 위 '단톡방 감지 정보 확인'에서 이름이 어느 위치에 표시되는지도 확인해.", 12, false), 5);
         titlesView = text("", 13, false);
         addWithTop(layout, titlesView, 8);
         titlesView.setOnClickListener(v -> showRecentPicker());
@@ -204,6 +209,27 @@ public class MainActivity extends Activity {
         RecoveryScheduler.scheduleIfWidgets(this);
         NotificationWatcher.reconnectIfNeeded(this);
         renderStatus();
+    }
+
+    private void showGroupDiagnostics() {
+        NotificationWatcher.refreshConfiguredRooms();
+        List<String> info = RoomStore.notificationMetadata(this);
+        StringBuilder details = new StringBuilder();
+        details.append("카카오톡이 실제 알림에 제공한 대화 제목·보조 제목·알림 제목만 확인해. 메시지 내용은 저장하지 않아.\n\n");
+        if (info.isEmpty()) {
+            details.append("감지된 카톡 알림이 아직 없어. 단톡방에서 메시지가 온 후 새로고침하고 다시 확인해 줘.");
+        } else {
+            for (int i = 0; i < Math.min(10, info.size()); i++) {
+                details.append(i + 1).append(". ").append(info.get(i)).append("\n\n");
+            }
+            details.append("※ 대화명이나 보조 제목에 실제 단톡방 이름이 보인다면 그 이름으로 등록해. ");
+            details.append("셋 다 방 이름을 제공하지 않으면 이 앱에서 방을 확실하게 구분할 수 없어.");
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("단톡방 알림 감지 진단")
+                .setMessage(details.toString())
+                .setPositiveButton("확인", null)
+                .show();
     }
 
     private void showRecentPicker() {
@@ -304,7 +330,7 @@ public class MainActivity extends Activity {
         } else {
             StringBuilder titles = new StringBuilder();
             for (String title : recent) titles.append("• ").append(title).append("\n");
-            titlesView.setText("이름을 누르거나 위의 선택 버튼으로 등록할 수 있어.\n\n"
+            titlesView.setText("이름이 실제 톡방명인지 확인한 뒤 선택해.\n\n"
                     + titles.toString().trim());
         }
     }
