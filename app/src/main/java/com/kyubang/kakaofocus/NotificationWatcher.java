@@ -69,7 +69,12 @@ public class NotificationWatcher extends NotificationListenerService {
     }
 
     @Override public void onNotificationPosted(StatusBarNotification sbn) {
-        if (sbn != null && KAKAO_PACKAGE.equals(sbn.getPackageName())) refreshSnapshot();
+        if (sbn == null || !KAKAO_PACKAGE.equals(sbn.getPackageName())) return;
+        // A notification may be replaced or grouped very quickly. Keep metadata from
+        // the posted event as well as the currently active snapshot.
+        Notification n = sbn.getNotification();
+        if (n != null && n.extras != null) rememberCandidates(n.extras);
+        refreshSnapshot();
     }
 
     @Override public void onNotificationRemoved(StatusBarNotification sbn) {
@@ -83,36 +88,27 @@ public class NotificationWatcher extends NotificationListenerService {
             int[] counts = new int[RoomStore.ROOM_COUNT];
             String[] rooms = new String[RoomStore.ROOM_COUNT];
             for (int i = 0; i < rooms.length; i++) rooms[i] = RoomStore.name(this, i);
-            if (active != null) for (StatusBarNotification sbn : active) {
-                if (!KAKAO_PACKAGE.equals(sbn.getPackageName())) continue;
-                Notification notification = sbn.getNotification();
-                if (notification == null || notification.extras == null) continue;
-                if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) continue;
-                if ((notification.flags & Notification.FLAG_ONGOING_EVENT) != 0) continue;
 
-                Bundle extras = notification.extras;
-                String conversation = value(extras, Notification.EXTRA_CONVERSATION_TITLE);
-                String title = value(extras, Notification.EXTRA_TITLE);
-                String subText = value(extras, Notification.EXTRA_SUB_TEXT);
-                String observed = !conversation.isEmpty() ? conversation
-                        : (!subText.isEmpty() && !"KakaoTalk".equalsIgnoreCase(subText)
-                            && !"카카오톡".equals(subText)) ? subText : title;
-                if (!observed.isEmpty()) RoomStore.rememberTitle(this, observed);
+            if (active != null) {
+                // Prefer individual messages to avoid double counting grouped notifications.
+                for (StatusBarNotification sbn : active) {
+                    Notification n = sbn.getNotification();
+                    if (!KAKAO_PACKAGE.equals(sbn.getPackageName()) || n == null
+                            || n.extras == null || (n.flags & Notification.FLAG_ONGOING_EVENT) != 0)
+                        continue;
+                    rememberCandidates(n.extras);
+                    if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) continue;
+                    matchEntry(sbn, rooms, counts, false);
+                }
 
-                for (int i = 0; i < RoomStore.activeRooms(this); i++) {
-                    if (rooms[i].isEmpty()) continue;
-                    boolean match;
-                    if (!conversation.isEmpty()) {
-                        match = sameRoom(rooms[i], conversation);
-                    } else {
-                        match = sameRoom(rooms[i], title) || sameRoom(rooms[i], subText);
-                    }
-                    if (match) {
-                        counts[i] = Math.min(999, counts[i] + estimateCount(extras));
-                        // Keep only the most recent notification timestamp, never message text.
-                        RoomStore.noteMessageAt(this, i, sbn.getPostTime());
-                        break;
-                    }
+                // Some KakaoTalk versions put a room label only on a summary.
+                // Use a summary only if no individual message matched this room.
+                for (StatusBarNotification sbn : active) {
+                    Notification n = sbn.getNotification();
+                    if (!KAKAO_PACKAGE.equals(sbn.getPackageName()) || n == null
+                            || n.extras == null
+                            || (n.flags & Notification.FLAG_GROUP_SUMMARY) == 0) continue;
+                    matchEntry(sbn, rooms, counts, true);
                 }
             }
             RoomStore.saveCounts(this, counts);
@@ -128,10 +124,83 @@ public class NotificationWatcher extends NotificationListenerService {
         }
     }
 
+    private void matchEntry(StatusBarNotification sbn, String[] rooms,
+                            int[] counts, boolean summaryOnly) {
+        Notification n = sbn.getNotification();
+        Bundle e = n.extras;
+        String conversation = value(e, Notification.EXTRA_CONVERSATION_TITLE);
+        String subText = value(e, Notification.EXTRA_SUB_TEXT);
+        String title = value(e, Notification.EXTRA_TITLE);
+        String bigTitle = value(e, Notification.EXTRA_TITLE_BIG);
+        String summaryText = value(e, Notification.EXTRA_SUMMARY_TEXT);
+
+        for (int i = 0; i < RoomStore.activeRooms(this); i++) {
+            if (rooms[i].isEmpty() || (summaryOnly && counts[i] > 0)) continue;
+            // Android / KakaoTalk releases may choose different metadata slots for
+            // a group room. Never infer a room name from the body of a message.
+            boolean match = sameRoom(rooms[i], conversation)
+                    || sameRoom(rooms[i], subText)
+                    || sameRoom(rooms[i], title)
+                    || sameRoom(rooms[i], bigTitle)
+                    || sameRoom(rooms[i], summaryText);
+            if (!match) continue;
+            counts[i] = Math.min(999, counts[i] + estimateCount(e));
+            RoomStore.noteMessageAt(this, i, sbn.getPostTime());
+            break;
+        }
+    }
+
+    private void rememberCandidates(Bundle e) {
+        String conversation = value(e, Notification.EXTRA_CONVERSATION_TITLE);
+        String subText = value(e, Notification.EXTRA_SUB_TEXT);
+        String title = value(e, Notification.EXTRA_TITLE);
+        String bigTitle = value(e, Notification.EXTRA_TITLE_BIG);
+        String summaryText = value(e, Notification.EXTRA_SUMMARY_TEXT);
+
+        if (!isGeneric(conversation)) RoomStore.rememberTitle(this, conversation);
+        if (!isGeneric(subText)) RoomStore.rememberTitle(this, subText);
+        if (!isGeneric(bigTitle)) RoomStore.rememberTitle(this, bigTitle);
+        if (!isGeneric(title)) RoomStore.rememberTitle(this, title);
+
+        String record = (e.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+                    ? "[단체알림] " : "")
+                + "대화명:" + show(conversation)
+                + " / 보조:" + show(subText)
+                + " / 제목:" + show(title)
+                + (!summaryText.isEmpty() ? " / 요약:" + show(summaryText) : "");
+        RoomStore.rememberNotificationMetadata(this, record);
+    }
+
+    private static boolean isGeneric(String title) {
+        return title == null || title.trim().isEmpty()
+                || title.equalsIgnoreCase("KakaoTalk")
+                || title.equals("카카오톡");
+    }
+
+    private static String show(String value) {
+        return value.isEmpty() ? "(없음)" : value;
+    }
+
+    private static String normalize(String name) {
+        return name.trim().replace('\u00a0', ' ')
+                .replace("\u200b", "").replace("\ufe0f", "")
+                .replaceAll("\\s+", " ");
+    }
+
     private static boolean sameRoom(String configured, String actual) {
-        return actual != null && !actual.isEmpty()
-                && configured.trim().replaceAll("\\s+", " ")
-                    .equals(actual.trim().replaceAll("\\s+", " "));
+        if (actual == null || actual.trim().isEmpty()) return false;
+        String name = normalize(configured);
+        String candidate = normalize(actual);
+        if (name.isEmpty()) return false;
+        if (name.equals(candidate)) return true;
+
+        // Safely recognize explicit "[room]" and "Sender (room)" styles.
+        if (candidate.equals("[" + name + "]")
+                || candidate.equals("(" + name + ")")
+                || candidate.endsWith(" (" + name + ")")
+                || candidate.endsWith(" [" + name + "]")) return true;
+        // Android sometimes appends a notification count to the chat title.
+        return candidate.matches(java.util.regex.Pattern.quote(name) + " \\(\\d{1,4}\\)");
     }
 
     private static String value(Bundle extras, String key) {
