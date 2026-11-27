@@ -157,10 +157,12 @@ public class NotificationWatcher extends NotificationListenerService {
         String bigTitle = value(e, Notification.EXTRA_TITLE_BIG);
         String summaryText = value(e, Notification.EXTRA_SUMMARY_TEXT);
 
-        if (!isGeneric(conversation)) RoomStore.rememberTitle(this, conversation);
-        if (!isGeneric(subText)) RoomStore.rememberTitle(this, subText);
-        if (!isGeneric(bigTitle)) RoomStore.rememberTitle(this, bigTitle);
+        // rememberTitle puts the newest name first: prioritize genuine room labels
+        // above sender names so group chats are easier to register.
         if (!isGeneric(title)) RoomStore.rememberTitle(this, title);
+        if (!isGeneric(bigTitle)) RoomStore.rememberTitle(this, bigTitle);
+        if (!isGeneric(subText)) RoomStore.rememberTitle(this, subText);
+        if (!isGeneric(conversation)) RoomStore.rememberTitle(this, conversation);
 
         String record = (e.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
                     ? "[단체알림] " : "")
