@@ -99,7 +99,7 @@ public class NotificationWatcher extends NotificationListenerService {
                             && !"카카오톡".equals(subText)) ? subText : title;
                 if (!observed.isEmpty()) RoomStore.rememberTitle(this, observed);
 
-                for (int i = 0; i < rooms.length; i++) {
+                for (int i = 0; i < RoomStore.activeRooms(this); i++) {
                     if (rooms[i].isEmpty()) continue;
                     boolean match;
                     if (!conversation.isEmpty()) {
