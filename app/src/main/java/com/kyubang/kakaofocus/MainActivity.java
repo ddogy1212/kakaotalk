@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
         scroll.addView(layout);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 💌", 25, true);
+        TextView heading = text("카톡 한눈에 2 💌", 25, true);
         heading.setTextColor(pink);
         layout.addView(heading);
 
