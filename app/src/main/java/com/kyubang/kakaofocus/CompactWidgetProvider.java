@@ -69,7 +69,7 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
                     // When very small, omit time to keep the count legible.
                     label = name + " " + (active <= 2
                             ? WidgetUpdater.countAndTime(context, i)
-                            : count > 0 ? "×" + count : "없음");
+                            : count > 0 ? "×" + count : "x0");
                     if (count > 0) anyAlert = true;
                 }
                 views.setTextViewText(rows[i], label);
