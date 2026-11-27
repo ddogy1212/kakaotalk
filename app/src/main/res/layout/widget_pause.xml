@@ -1,28 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/pause_root"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="4dp"
-    android:background="@drawable/widget_bg">
-    <TextView android:id="@+id/pause_title"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:gravity="center" android:singleLine="true"
-        android:ellipsize="end" android:includeFontPadding="false"
-        android:text="카톡 10분" android:textColor="#FFF5F7"
-        android:textSize="10sp" android:textStyle="bold" />
-    <Chronometer android:id="@+id/pause_countdown"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:gravity="center" android:includeFontPadding="false"
-        android:visibility="gone"
-        android:textColor="#FFB6DC" android:textStyle="bold"
-        android:textSize="15sp" />
-    <TextView android:id="@+id/pause_hint"
-        android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:gravity="center" android:singleLine="true"
-        android:ellipsize="end" android:includeFontPadding="false"
-        android:text="눌러서 시작" android:textColor="#FFB6DC"
-        android:textSize="8sp" />
-</LinearLayout>
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_bg" android:clipToOutline="true">
+    <ImageView android:id="@+id/pause_photo" android:layout_width="match_parent"
+        android:layout_height="match_parent" android:scaleType="centerCrop"
+        android:contentDescription="@string/pause_photo_description"
+        android:visibility="gone" />
+    <LinearLayout android:id="@+id/pause_text_panel"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:gravity="center" android:orientation="vertical" android:padding="3dp">
+        <TextView android:id="@+id/pause_title"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:singleLine="true"
+            android:includeFontPadding="false" android:text="카톡 제한"
+            android:textSize="10sp" android:textColor="#FFFFFF" android:textStyle="bold" />
+        <Chronometer android:id="@+id/pause_countdown"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:includeFontPadding="false"
+            android:visibility="gone" android:textColor="#FFB6DC"
+            android:textStyle="bold" android:textSize="14sp" />
+        <TextView android:id="@+id/pause_hint"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:singleLine="true"
+            android:includeFontPadding="false" android:text="사진을 눌러 시작"
+            android:textSize="8sp" android:textColor="#FFB6DC" />
+    </LinearLayout>
+</FrameLayout>
