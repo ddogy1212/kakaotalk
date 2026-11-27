@@ -93,12 +93,64 @@ final class RoomStore {
         return Math.max(0, Math.min(2, prefs(c).getInt("widget_inset", 1)));
     }
 
-    static void saveAppearance(Context c, int theme, int fontScale, int align, int inset) {
+    static int chatSp(Context c) {
+        return clamp(prefs(c).getInt("chat_sp", 9 + fontScale(c)), 7, 18);
+    }
+
+    static int compactSp(Context c) {
+        return clamp(prefs(c).getInt("compact_sp", 8), 6, 16);
+    }
+
+    static int daySp(Context c) {
+        return clamp(prefs(c).getInt("day_sp", 5), 4, 12);
+    }
+
+    static int safeInsetDp(Context c) {
+        return clamp(prefs(c).getInt("safe_inset_dp", 10 + inset(c) * 4), 6, 26);
+    }
+
+    static int dayTopDp(Context c) {
+        return clamp(prefs(c).getInt("day_top_dp", 9), 2, 30);
+    }
+
+    static int dayEndDp(Context c) {
+        return clamp(prefs(c).getInt("day_end_dp", 12), 2, 32);
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    static void saveWidgetDesign(Context c, int theme, int align,
+                                 int chatSp, int compactSp, int daySp, int insetDp,
+                                 int dayTopDp, int dayEndDp) {
         prefs(c).edit()
-                .putInt("widget_theme", Math.max(0, Math.min(2, theme)))
-                .putInt("widget_font", Math.max(0, Math.min(2, fontScale)))
-                .putInt("widget_align", Math.max(0, Math.min(2, align)))
-                .putInt("widget_inset", Math.max(0, Math.min(2, inset)))
+                .putInt("widget_theme", clamp(theme, 0, 2))
+                .putInt("widget_align", clamp(align, 0, 2))
+                .putInt("chat_sp", clamp(chatSp, 7, 18))
+                .putInt("compact_sp", clamp(compactSp, 6, 16))
+                .putInt("day_sp", clamp(daySp, 4, 12))
+                .putInt("safe_inset_dp", clamp(insetDp, 6, 26))
+                .putInt("day_top_dp", clamp(dayTopDp, 2, 30))
+                .putInt("day_end_dp", clamp(dayEndDp, 2, 32))
+                .apply();
+    }
+
+    /** Legacy backups (schema 1/2) retain their older appearance settings. */
+    static void saveAppearance(Context c, int theme, int fontScale, int align, int inset) {
+        int safeFont = clamp(fontScale, 0, 2);
+        int safeInset = clamp(inset, 0, 2);
+        prefs(c).edit()
+                .putInt("widget_theme", clamp(theme, 0, 2))
+                .putInt("widget_font", safeFont)
+                .putInt("widget_align", clamp(align, 0, 2))
+                .putInt("widget_inset", safeInset)
+                .putInt("chat_sp", 9 + safeFont)
+                .putInt("compact_sp", 8)
+                .putInt("day_sp", 5)
+                .putInt("safe_inset_dp", 10 + safeInset * 4)
+                .putInt("day_top_dp", 9)
+                .putInt("day_end_dp", 12)
                 .apply();
     }
 
