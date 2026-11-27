@@ -71,7 +71,7 @@ final class WidgetUpdater {
         DisplayMetrics dm = c.getResources().getDisplayMetrics();
         paint.setTextSize(sp * dm.scaledDensity);
         float budget = Math.max(25, availableDp) * dm.density;
-        String tail = "  " + status;
+        String tail = " " + status;
         if (paint.measureText(tail) > budget && status.contains(" · ")) {
             status = status.substring(0, status.indexOf(" · "));
             tail = "  " + status;
