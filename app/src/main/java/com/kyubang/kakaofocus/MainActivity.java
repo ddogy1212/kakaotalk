@@ -3,6 +3,7 @@ package com.kyubang.kakaofocus;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -57,6 +58,24 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
         });
 
+        Button reconnect = button("🔄 알림 연결 확인 및 새로고침");
+        addWithTop(layout, reconnect, 8);
+        reconnect.setOnClickListener(v -> {
+            boolean connected = NotificationWatcher.reconnectIfNeeded(this);
+            renderStatus();
+            Toast.makeText(this,
+                    connected ? "현재 알림 다시 확인했어!" : "재연결 요청했어. 계속 안 되면 알림 접근 권한을 껐다 켜줘.",
+                    Toast.LENGTH_LONG).show();
+        });
+
+        Button battery = button("🔋 배터리 제한 설정 열기");
+        addWithTop(layout, battery, 8);
+        battery.setOnClickListener(v -> {
+            Intent appInfo = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName()));
+            startActivity(appInfo);
+        });
+
         addWithTop(layout, text("2. 감시할 카카오톡 채팅방 이름", 18, true), 24);
         addWithTop(layout, text(
                 "카톡 알림에 표시되는 이름과 똑같이 입력해 주세요.\n"
@@ -93,7 +112,9 @@ public class MainActivity extends Activity {
         titlesView.setOnClickListener(v -> showRecentPicker());
 
         addWithTop(layout, text(
-                "알림 숫자는 현재 휴대폰에 남아 있는 알림 기준의 추정치예요. "
+                "감지가 멈췄다면 '새로고침'을 누르고, 설정에서 배터리 사용을 '제한 없음'으로 변경해 주세요. "
+                + "알림 접근 권한을 껐다가 다시 켜는 것도 도움이 됩니다.\\n\\n"
+                + "알림 숫자는 현재 휴대폰에 남아 있는 알림 기준의 추정치예요. "
                 + "실제 안 읽은 메시지 수와 다를 수 있어요. "
                 + "알림이 지워지거나, 채팅방 이름이 알림에 없으면 감지하지 못할 수 있어요.\n\n"
                 + "기기에만 저장됩니다. 방해금지 모드를 해제할 필요는 없어요.", 12, false), 22);
@@ -103,6 +124,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        NotificationWatcher.reconnectIfNeeded(this);
         renderStatus();
     }
 
@@ -158,10 +180,10 @@ public class MainActivity extends Activity {
     private void renderStatus() {
         if (statusView == null) return;
         boolean granted = WidgetUpdater.hasAccess(this);
-        boolean connected = RoomStore.connected(this);
+        boolean connected = NotificationWatcher.isConnected();
         statusView.setText(!granted ? "⚠ 알림 접근 권한이 필요해요"
                 : connected ? "✓ 알림 감지 연결됨 (방해금지 유지 가능)"
-                : "… 권한 허용됨 · 알림 감지 연결 대기 중");
+                : "… 감지 서비스 연결 끊김 · 새로고침을 눌러줘");
         statusView.setTextColor(!granted ? Color.rgb(181, 79, 64) : pink);
 
         StringBuilder preview = new StringBuilder();
