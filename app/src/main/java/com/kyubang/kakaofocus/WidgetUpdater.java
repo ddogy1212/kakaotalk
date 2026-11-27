@@ -127,6 +127,12 @@ final class WidgetUpdater {
 
             RemoteViews views = new RemoteViews(app.getPackageName(), R.layout.widget_small);
             views.setInt(R.id.widget_root, "setBackgroundResource", background);
+            // Align the entire multiline block and each line to one shared axis.
+            // Previously only the TextViews were aligned and the first row had
+            // extra end padding, so center alignment visibly drifted.
+            views.setInt(R.id.widget_chat_positioner, "setGravity", gravity);
+            views.setInt(R.id.widget_chat_rows, "setGravity",
+                    Gravity.CENTER_VERTICAL | horizontalGravity(app));
             views.setTextViewText(R.id.exam_d_day, ExamDay.label());
             views.setTextColor(R.id.exam_d_day, alert);
             views.setViewPadding(R.id.widget_root, dp(app, inset), dp(app, topBottom),
