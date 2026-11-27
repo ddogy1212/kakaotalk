@@ -71,7 +71,7 @@ public final class CropActivity extends Activity {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 int degrees = progress - 180;
                 angleText.setText("회전 " + degrees + "°");
-                editor.setRotation(degrees);
+                editor.setPhotoAngle(degrees);
             }
             @Override public void onStartTrackingTouch(SeekBar bar) {}
             @Override public void onStopTrackingTouch(SeekBar bar) {}
