@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
     private final EditText[] inputs = new EditText[RoomStore.ROOM_COUNT];
     private final EditText[] nicknameInputs = new EditText[RoomStore.ROOM_COUNT];
     private final LinearLayout[] roomCards = new LinearLayout[RoomStore.ROOM_COUNT];
+    private final TextView[] bindingLabels = new TextView[RoomStore.ROOM_COUNT];
     private LinearLayout roomsPanel, widgetsPanel, focusPanel;
     private Button roomsTab, widgetsTab, focusTab;
     private Spinner roomCount;
@@ -183,6 +184,13 @@ public final class MainActivity extends Activity {
             });
             nicknameInputs[i] = nickname;
             addWithTop(card, nickname, 4);
+
+            TextView bindingLabel = text("", 11, false);
+            bindingLabels[i] = bindingLabel;
+            bindingLabel.setText(RoomStore.boundConversation(this, i).isEmpty()
+                    ? "알림 직접 연결: 없음 (방 이름 자동 비교)"
+                    : "알림 직접 연결: 설정됨 ✓");
+            addWithTop(card, bindingLabel, 7);
         }
         updateVisibleInputs();
         roomCount.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -195,6 +203,16 @@ public final class MainActivity extends Activity {
         select.setOnClickListener(v -> showRecentPicker());
         Button save = addButton(roomsPanel, "톡방 설정 저장", true);
         save.setOnClickListener(v -> saveRooms());
+
+        addWithTop(roomsPanel, text("🔗 단톡방 알림 직접 연결", 16, true), 22);
+        addWithTop(roomsPanel, text(
+                "카톡이 방 이름 대신 보낸 사람 이름만 알려주는 경우를 위한 기능이야. "
+                + "먼저 위에서 실제 톡방 이름을 저장하고, 단톡방 메시지 알림을 한 번 받은 직후 연결해 줘.",
+                12, false), 7);
+        Button attach = addButton(roomsPanel, "최근 카톡 알림을 톡방에 연결", true);
+        attach.setOnClickListener(v -> showConversationBinder());
+        Button detach = addButton(roomsPanel, "연결된 알림 해제", false);
+        detach.setOnClickListener(v -> clearConversationBinding());
 
         addWithTop(roomsPanel, text("단톡방 감지가 안 된다면", 16, true), 18);
         Button diagnostics = addButton(roomsPanel, "🔍 카톡 알림 제목 진단", false);
@@ -645,12 +663,103 @@ public final class MainActivity extends Activity {
     private void showGroupDiagnostics() {
         NotificationWatcher.refreshConfiguredRooms();
         List<String> info = RoomStore.notificationMetadata(this);
-        StringBuilder b = new StringBuilder("카톡이 알림에 보낸 제목만 보여줘. 메시지 본문은 읽거나 저장하지 않아.\n\n");
-        if (info.isEmpty()) b.append("알림 기록이 아직 없어. 단톡방에서 카톡을 한 번 받은 뒤 다시 확인해 줘.");
-        else for (int i = 0; i < Math.min(10, info.size()); i++)
-            b.append(i + 1).append(". ").append(info.get(i)).append("\n\n");
-        new AlertDialog.Builder(this).setTitle("단톡방 감지 진단")
+        List<RoomStore.Conversation> recent = RoomStore.recentConversations(this);
+        boolean granted = WidgetUpdater.hasAccess(this);
+        StringBuilder b = new StringBuilder();
+        b.append("알림 접근: ").append(granted ? "허용" : "허용 필요").append("\\n")
+                .append("감지 서비스: ").append(NotificationWatcher.isConnected()
+                        ? "연결됨" : "연결 대기").append("\\n")
+                .append("최근 식별된 대화: ").append(recent.size()).append("개\\n\\n");
+        for (int i = 0; i < RoomStore.activeRooms(this); i++)
+            b.append(i + 1).append(". ").append(RoomStore.name(this, i))
+                    .append(" → ").append(RoomStore.count(this, i)).append("개")
+                    .append(RoomStore.boundConversation(this, i).isEmpty()
+                            ? " (이름 비교)" : " (직접 연결됨)").append("\\n");
+        b.append("\\n최근 카톡 알림 정보 (메시지 본문 제외):\\n");
+        if (info.isEmpty())
+            b.append("아직 수신한 카톡 알림이 없어. 카톡 앱 설정에서 메시지 미리보기를 켜고, "
+                    + "단톡방에서 새 알림을 받은 다음 다시 확인해 줘.");
+        else for (int k = 0; k < Math.min(8, info.size()); k++)
+            b.append(k + 1).append(". ").append(info.get(k)).append("\\n\\n");
+        new AlertDialog.Builder(this).setTitle("단톡방 알림 진단")
                 .setMessage(b.toString()).setPositiveButton("확인", null).show();
+    }
+
+    /** Manual binding is only needed if Kakao does not expose the group room title. */
+    private void showConversationBinder() {
+        NotificationWatcher.refreshConfiguredRooms();
+        List<RoomStore.Conversation> recents = RoomStore.recentConversations(this);
+        if (recents.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("연결할 알림을 찾지 못했어")
+                    .setMessage("카톡에서 단톡방 메시지 알림을 받은 직후 이 버튼을 눌러줘. "
+                            + "알림 접근 권한도 켜져 있어야 해. "
+                            + "카카오톡이 대화별 식별자를 제공하지 않으면 직접 연결할 수 없어.")
+                    .setPositiveButton("확인", null).show();
+            return;
+        }
+        String[] labels = new String[recents.size()];
+        java.text.SimpleDateFormat format =
+                new java.text.SimpleDateFormat("M/d HH:mm", java.util.Locale.KOREA);
+        for (int i = 0; i < recents.size(); i++) {
+            RoomStore.Conversation item = recents.get(i);
+            String title = item.label.isEmpty() ? "방 이름 미제공" : item.label;
+            labels[i] = (item.group ? "[단톡] " : "[알림] ")
+                    + title + " · " + format.format(new java.util.Date(item.when))
+                    + " · #" + item.token.substring(item.token.length() - 5);
+        }
+        new AlertDialog.Builder(this).setTitle("최근 카톡 알림 선택")
+                .setMessage("단톡방에서 방금 받은 알림을 골라줘. "
+                        + "표시되는 이름은 실제 방 이름이 아니라 발신자일 수 있으니 시간도 확인해.")
+                .setItems(labels, (dialog, which) -> {
+                    RoomStore.Conversation selected = recents.get(which);
+                    int active = RoomStore.activeRooms(this);
+                    String[] rooms = new String[active];
+                    for (int i = 0; i < active; i++)
+                        rooms[i] = (i + 1) + ". " + (RoomStore.name(this, i).isEmpty()
+                                ? "(톡방 이름 먼저 저장)" : RoomStore.name(this, i));
+                    new AlertDialog.Builder(this).setTitle("이 알림을 어느 톡방에 연결할까?")
+                            .setItems(rooms, (d, roomIndex) -> {
+                                if (RoomStore.name(this, roomIndex).isEmpty()) {
+                                    Toast.makeText(this, "톡방 이름을 먼저 저장해 줘.",
+                                            Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                                RoomStore.bindConversation(this, roomIndex, selected.token);
+                                NotificationWatcher.refreshConfiguredRooms();
+                                WidgetUpdater.updateAll(this);
+                                updateBindingLabels();
+                                refreshUI();
+                                Toast.makeText(this,
+                                        "이제 이 대화의 알림을 " + RoomStore.name(this, roomIndex)
+                                                + "에 연결해 감지해!",
+                                        Toast.LENGTH_LONG).show();
+                            }).setNegativeButton("취소", null).show();
+                }).setNegativeButton("취소", null).show();
+    }
+
+    private void clearConversationBinding() {
+        int active = RoomStore.activeRooms(this);
+        String[] rooms = new String[active];
+        for (int i = 0; i < active; i++)
+            rooms[i] = (i + 1) + ". " + RoomStore.name(this, i)
+                    + (RoomStore.boundConversation(this, i).isEmpty()
+                    ? " (연결 없음)" : " (연결됨)");
+        new AlertDialog.Builder(this).setTitle("어떤 톡방의 직접 연결을 해제할까?")
+                .setItems(rooms, (dialog, index) -> {
+                    RoomStore.bindConversation(this, index, "");
+                    NotificationWatcher.refreshConfiguredRooms();
+                    WidgetUpdater.updateAll(this);
+                    updateBindingLabels();
+                    refreshUI();
+                }).setNegativeButton("취소", null).show();
+    }
+
+    private void updateBindingLabels() {
+        for (int i = 0; i < bindingLabels.length; i++)
+            if (bindingLabels[i] != null)
+                bindingLabels[i].setText(RoomStore.boundConversation(this, i).isEmpty()
+                        ? "알림 직접 연결: 없음 (방 이름 자동 비교)"
+                        : "알림 직접 연결: 설정됨 ✓");
     }
 
     private void showRecentPicker() {
@@ -704,6 +813,7 @@ public final class MainActivity extends Activity {
         RoomStore.saveRooms(this, names);
         RoomStore.saveNicknames(this, aliases);
         RoomStore.saveActiveRooms(this, active);
+        updateBindingLabels();
         NotificationWatcher.refreshConfiguredRooms();
         WidgetUpdater.updateAll(this);
         refreshUI();
