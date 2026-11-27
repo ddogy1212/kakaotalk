@@ -10,7 +10,15 @@ import android.os.SystemClock;
 import android.provider.Settings;
 
 final class PauseState {
-    static final long LENGTH_MS = 10L * 60L * 1000L;
+    static int durationMinutes(Context context) {
+        return Math.max(1, Math.min(60, prefs(context).getInt("duration_minutes", 10)));
+    }
+
+    static void saveDurationMinutes(Context context, int minutes) {
+        prefs(context).edit().putInt("duration_minutes",
+                Math.max(1, Math.min(60, minutes))).apply();
+        PauseWidgetProvider.updateAll(context);
+    }
     private PauseState() {}
 
     private static SharedPreferences prefs(Context context) {
@@ -48,7 +56,7 @@ final class PauseState {
         // Never claim to block the app unless the user explicitly enabled the service.
         if (!accessibilityEnabled(context) || active(context)) return;
         prefs(context).edit()
-                .putLong("pause_end_wall", System.currentTimeMillis() + LENGTH_MS)
+                .putLong("pause_end_wall", System.currentTimeMillis() + durationMinutes(context) * 60_000L)
                 .apply();
         scheduleExpiry(context);
         PauseWidgetProvider.updateAll(context);
