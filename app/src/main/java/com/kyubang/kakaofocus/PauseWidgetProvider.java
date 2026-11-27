@@ -35,7 +35,7 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
                 : theme == 2 ? R.drawable.widget_bg_translucent : R.drawable.widget_bg;
         int base = theme == 1 ? Color.rgb(45, 37, 49) : Color.WHITE;
         int accent = theme == 1 ? Color.rgb(180, 53, 112) : Color.rgb(255, 182, 220);
-        Bitmap bitmap = PhotoStore.bitmap(context, true);
+        Bitmap bitmap = PhotoStore.bitmap(context);
         boolean hasPhoto = bitmap != null;
 
         for (int id : ids) {
