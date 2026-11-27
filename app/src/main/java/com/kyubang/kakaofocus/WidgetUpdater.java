@@ -26,7 +26,7 @@ final class WidgetUpdater {
         if (ids == null || ids.length == 0) return;
 
         boolean granted = hasAccess(app);
-        boolean connected = RoomStore.connected(app);
+        boolean connected = NotificationWatcher.isConnected();
         int[] viewIds = {R.id.room_row_1, R.id.room_row_2, R.id.room_row_3};
         for (int widgetId : ids) {
             RemoteViews views = new RemoteViews(app.getPackageName(), R.layout.widget_small);
