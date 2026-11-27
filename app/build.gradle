@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.kyubang.kakaofocus7'
+        applicationId 'com.kyubang.kakaofocus8'
         minSdk 26
         targetSdk 34
-        versionCode 7
-        versionName '1.6'
+        versionCode 8
+        versionName '1.7'
     }
 
     compileOptions {
