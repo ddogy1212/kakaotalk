@@ -61,7 +61,7 @@ public final class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 9 💌", 26, true);
+        TextView heading = text("카톡 한눈에 정식 💌", 26, true);
         heading.setTextColor(PINK);
         page.addView(heading);
         addWithTop(page, text("알림은 간단하게, 카톡 확인은 내가 정한 시간에.", 13, false), 6);
