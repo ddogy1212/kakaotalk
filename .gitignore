@@ -7,3 +7,10 @@ build/
 .DS_Store
 captures/
 *.apk
+
+# Private Android signing credentials. NEVER commit signing materials.
+*.p12
+*.jks
+*.keystore
+*GitHubSecret_PRIVATE*
+.release-signing/
