@@ -2,16 +2,44 @@ plugins {
     id 'com.android.application'
 }
 
+// Stable signing is passed only by GitHub Actions from an encrypted repository
+// secret. Never commit the PKCS12 key or passwords to this source repository.
+def stableKeyPath = System.getenv('KAKAO_RELEASE_KEYSTORE_PATH')
+def stableKeyPassword = System.getenv('KAKAO_RELEASE_STORE_PASSWORD')
+
 android {
     namespace 'com.kyubang.kakaofocus'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.kyubang.kakaofocus9'
+        // IMPORTANT: Never change this ID again for upgrades.
+        applicationId 'com.kyubang.kakaofocus.stable'
         minSdk 26
         targetSdk 34
-        versionCode 9
-        versionName '1.8'
+        // Increase versionCode by >=1 for EACH subsequent installed update.
+        versionCode 10
+        versionName '2.0'
+    }
+
+    signingConfigs {
+        stableRelease {
+            if (stableKeyPath && stableKeyPassword) {
+                storeFile file(stableKeyPath)
+                storePassword stableKeyPassword
+                keyAlias 'kakao_focus_release'
+                keyPassword stableKeyPassword
+                storeType 'pkcs12'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (stableKeyPath && stableKeyPassword) {
+                signingConfig signingConfigs.stableRelease
+            }
+            minifyEnabled false
+        }
     }
 
     compileOptions {
