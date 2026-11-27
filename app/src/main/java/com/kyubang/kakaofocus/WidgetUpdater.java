@@ -13,6 +13,7 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.RemoteViews;
 
 import java.text.SimpleDateFormat;
@@ -90,7 +91,8 @@ final class WidgetUpdater {
 
         boolean granted = hasAccess(app);
         boolean connected = NotificationWatcher.isConnected();
-        int[] rows = {R.id.room_row_1, R.id.room_row_2, R.id.room_row_3};
+        int[] rows = {R.id.room_row_1, R.id.room_row_2, R.id.room_row_3, R.id.room_row_4};
+        int active = RoomStore.activeRooms(app);
         int theme = RoomStore.theme(app);
         int background = theme == 1 ? R.drawable.widget_bg_light
                 : theme == 2 ? R.drawable.widget_bg_translucent : R.drawable.widget_bg;
@@ -109,12 +111,15 @@ final class WidgetUpdater {
             if (heightDp <= 0) heightDp = 48;
             widthDp = Math.max(65, widthDp);
 
-            // Three rows must fit even in the short LockStar frame.
+            // Adjust typography to the selected number of rows and reported LockStar size.
+            // The host can still crop a widget if its frame is smaller than Android reports.
             float sp = 9f + RoomStore.fontScale(app);
-            if (heightDp < 44) sp = Math.min(sp, 9f);
+            if (active == 4 && heightDp <= 55) sp = Math.min(sp, 8f);
+            if (active == 4 && heightDp < 42) sp = Math.min(sp, 7.5f);
+            if (active == 3 && heightDp < 44) sp = Math.min(sp, 9f);
             if (heightDp < 36) sp = Math.min(sp, 8f);
             if (heightDp < 30) sp = Math.min(sp, 7.5f);
-            int topBottom = heightDp < 42 ? 1 : 3;
+            int topBottom = active == 4 || heightDp < 42 ? 1 : 3;
             int textBudgetDp = Math.max(35, widthDp - inset * 2 - 4);
 
             RemoteViews views = new RemoteViews(app.getPackageName(), R.layout.widget_small);
@@ -123,6 +128,8 @@ final class WidgetUpdater {
                     dp(app, inset), dp(app, topBottom));
             boolean anyAlert = false;
             for (int i = 0; i < RoomStore.ROOM_COUNT; i++) {
+                views.setViewVisibility(rows[i], i < active ? View.VISIBLE : View.GONE);
+                if (i >= active) continue;
                 String room = RoomStore.name(app, i);
                 int count = RoomStore.count(app, i);
                 String name;
