@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.ClipData;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -43,6 +44,8 @@ public final class MainActivity extends Activity {
     private static final int PINK = Color.rgb(196, 60, 127);
 
     private final EditText[] inputs = new EditText[RoomStore.ROOM_COUNT];
+    private final EditText[] nicknameInputs = new EditText[RoomStore.ROOM_COUNT];
+    private final LinearLayout[] roomCards = new LinearLayout[RoomStore.ROOM_COUNT];
     private LinearLayout roomsPanel, widgetsPanel, focusPanel;
     private Button roomsTab, widgetsTab, focusTab;
     private Spinner roomCount;
@@ -118,18 +121,47 @@ public final class MainActivity extends Activity {
         addWithTop(roomsPanel, text("표시할 톡방 개수", 15, true), 18);
         roomCount = spinner(new String[]{"1개", "2개", "3개", "4개"}, RoomStore.activeRooms(this) - 1);
         addWithTop(roomsPanel, roomCount, 6);
-        addWithTop(roomsPanel, text("아래 이름은 카카오톡 알림에 표시되는 이름과 일치해야 해.", 12, false), 9);
+        addWithTop(roomsPanel, text("원래 이름은 알림 감지용이고, 별명은 위젯에만 보여. 별명은 필요한 톡방에만 넣으면 돼.", 12, false), 9);
         for (int i = 0; i < RoomStore.ROOM_COUNT; i++) {
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(12), dp(12), dp(12), dp(12));
+            card.setBackground(round(Color.rgb(255, 247, 251), 14));
+            roomCards[i] = card;
+            addWithTop(roomsPanel, card, 10);
+
+            TextView title = text("톡방 " + (i + 1), 14, true);
+            title.setTextColor(PINK);
+            card.addView(title);
+
+            TextView actualLabel = text("카톡에서 표시되는 실제 이름 · 감지용", 12, false);
+            addWithTop(card, actualLabel, 7);
             EditText edit = new EditText(this);
             edit.setTextColor(INK);
             edit.setTextSize(15);
             edit.setSingleLine(true);
-            edit.setHint((i + 1) + "번 톡방 이름");
+            edit.setHint("실제 톡방 이름");
             edit.setText(RoomStore.name(this, i));
-            edit.setPadding(dp(12), dp(9), dp(12), dp(9));
-            edit.setBackground(round(Color.rgb(251, 244, 249), 12));
+            edit.setPadding(dp(10), dp(8), dp(10), dp(8));
+            edit.setBackground(round(Color.WHITE, 10));
             inputs[i] = edit;
-            addWithTop(roomsPanel, edit, 9);
+            addWithTop(card, edit, 4);
+
+            TextView nicknameLabel = text("짧은 별명 · 위젯 표시용 (선택)", 12, false);
+            addWithTop(card, nicknameLabel, 10);
+            EditText nickname = new EditText(this);
+            nickname.setTextColor(INK);
+            nickname.setTextSize(15);
+            nickname.setSingleLine(true);
+            nickname.setHint("예: 나예 / 엄마 / 반톡");
+            nickname.setText(RoomStore.nickname(this, i));
+            nickname.setPadding(dp(10), dp(8), dp(10), dp(8));
+            nickname.setBackground(round(Color.WHITE, 10));
+            nickname.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(24)
+            });
+            nicknameInputs[i] = nickname;
+            addWithTop(card, nickname, 4);
         }
         updateVisibleInputs();
         roomCount.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -224,7 +256,13 @@ public final class MainActivity extends Activity {
         SeekBar duration = new SeekBar(this);
         duration.setMax(59);
         duration.setProgress(PauseState.durationMinutes(this) - 1);
-        addWithTop(focusPanel, duration, 8);
+        duration.setSplitTrack(false);
+        duration.setProgressTintList(ColorStateList.valueOf(PINK));
+        duration.setThumbTintList(ColorStateList.valueOf(PINK));
+        duration.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(242, 207, 225)));
+        // Match the thumb track to the end labels instead of using spaces.
+        duration.setPadding(dp(5), dp(7), dp(5), dp(7));
+        addWithTop(focusPanel, duration, 10);
         minutesLabel.setText("차단 시간 · " + (duration.getProgress() + 1) + "분");
         duration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
@@ -236,7 +274,17 @@ public final class MainActivity extends Activity {
                 refreshUI();
             }
         });
-        addWithTop(focusPanel, text("1분                                             60분", 12, false), 0);
+        LinearLayout durationLabels = new LinearLayout(this);
+        durationLabels.setOrientation(LinearLayout.HORIZONTAL);
+        durationLabels.setGravity(Gravity.CENTER_VERTICAL);
+        TextView minLabel = text("1분", 12, false);
+        TextView maxLabel = text("60분", 12, false);
+        minLabel.setGravity(Gravity.START);
+        maxLabel.setGravity(Gravity.END);
+        durationLabels.addView(minLabel, new LinearLayout.LayoutParams(0, -2, 1f));
+        durationLabels.addView(maxLabel, new LinearLayout.LayoutParams(0, -2, 1f));
+        addWithTop(focusPanel, durationLabels, 0);
+        addWithTop(focusPanel, text("슬라이더를 움직이면 선택한 시간이 바로 저장돼.", 11, false), 6);
 
         addWithTop(focusPanel, text("차단 중 사진 위 표시", 16, true), 17);
         Spinner displayMode = spinner(new String[]{
@@ -374,7 +422,7 @@ public final class MainActivity extends Activity {
         boolean connected = NotificationWatcher.isConnected();
         statusView.setText(!granted ? "● 카톡 알림 접근 권한 필요" :
                 connected ? "● 카톡 알림 감지 정상" : "● 연결 대기 중 · 새로고침 필요");
-        statusView.setTextColor(granted && connected ? Color.rgb(71, 132, 91) : PINK);
+        statusView.setTextColor(granted && connected ? INK : PINK);
         if (pauseStatus != null) {
             boolean enabled = PauseState.accessibilityEnabled(this);
             if (!enabled) pauseStatus.setText("차단 서비스 꺼짐 · 접근성 권한을 켜줘");
@@ -411,8 +459,9 @@ public final class MainActivity extends Activity {
         previewDay.setTextColor(accent);
         previewDay.setTextSize(5.5f);
         for (int i = 0; i < RoomStore.activeRooms(this); i++) {
-            String name = RoomStore.name(this, i);
-            boolean missing = name.isEmpty();
+            String original = RoomStore.name(this, i);
+            boolean missing = original.isEmpty();
+            String name = RoomStore.displayName(this, i);
             if (missing) name = (i + 1) + "번 톡방 등록";
             int count = RoomStore.count(this, i);
             String status = missing ? "" : !WidgetUpdater.hasAccess(this)
@@ -478,13 +527,22 @@ public final class MainActivity extends Activity {
     private void updateVisibleInputs() {
         if (roomCount == null) return;
         int active = roomCount.getSelectedItemPosition() + 1;
-        for (int i = 0; i < inputs.length; i++)
-            if (inputs[i] != null) inputs[i].setVisibility(i < active ? View.VISIBLE : View.GONE);
+        for (int i = 0; i < roomCards.length; i++)
+            if (roomCards[i] != null)
+                roomCards[i].setVisibility(i < active ? View.VISIBLE : View.GONE);
     }
 
     private void saveRooms() {
         String[] names = new String[RoomStore.ROOM_COUNT];
-        for (int i = 0; i < names.length; i++) names[i] = inputs[i].getText().toString().trim();
+        String[] aliases = new String[RoomStore.ROOM_COUNT];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = inputs[i].getText().toString().trim();
+            aliases[i] = nicknameInputs[i].getText().toString().trim();
+            if (aliases[i].codePointCount(0, aliases[i].length()) > 12) {
+                Toast.makeText(this, "별명은 최대 12글자까지 입력할 수 있어.", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
         int active = roomCount.getSelectedItemPosition() + 1;
         Set<String> unique = new HashSet<>();
         for (int i = 0; i < active; i++) {
@@ -494,11 +552,12 @@ public final class MainActivity extends Activity {
             }
         }
         RoomStore.saveRooms(this, names);
+        RoomStore.saveNicknames(this, aliases);
         RoomStore.saveActiveRooms(this, active);
         NotificationWatcher.refreshConfiguredRooms();
         WidgetUpdater.updateAll(this);
         refreshUI();
-        Toast.makeText(this, active + "개 톡방 설정 저장 완료!", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, active + "개 톡방과 별명 저장 완료!", Toast.LENGTH_SHORT).show();
     }
 
     private void showTab(int chosen) {
