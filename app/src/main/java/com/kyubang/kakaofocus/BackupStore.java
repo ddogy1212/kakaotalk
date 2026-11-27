@@ -35,7 +35,7 @@ final class BackupStore {
         JSONObject json = new JSONObject();
         try {
             json.put("format", "kakao-focus-backup");
-            json.put("schema", 2);
+            json.put("schema", 3);
             json.put("activeRooms", RoomStore.activeRooms(context));
             JSONArray rooms = new JSONArray();
             for (int i = 0; i < RoomStore.ROOM_COUNT; i++)
@@ -51,6 +51,12 @@ final class BackupStore {
             json.put("inset", RoomStore.inset(context));
             json.put("pauseMinutes", PauseState.durationMinutes(context));
             json.put("pauseDisplayMode", PauseState.displayMode(context));
+            json.put("chatSp", RoomStore.chatSp(context));
+            json.put("compactSp", RoomStore.compactSp(context));
+            json.put("daySp", RoomStore.daySp(context));
+            json.put("safeInsetDp", RoomStore.safeInsetDp(context));
+            json.put("dayTopDp", RoomStore.dayTopDp(context));
+            json.put("dayEndDp", RoomStore.dayEndDp(context));
         } catch (JSONException impossible) {
             throw new IOException("설정 파일을 준비하지 못했어.", impossible);
         }
@@ -109,12 +115,13 @@ final class BackupStore {
 
         String[] rooms = new String[RoomStore.ROOM_COUNT];
         String[] aliases = new String[RoomStore.ROOM_COUNT];
-        final int active, theme, font, align, inset, minutes, mode;
+        final int active, theme, font, align, inset, minutes, mode, schema;
+        final int chatSp, compactSp, daySp, insetDp, dayTopDp, dayEndDp;
         try {
             JSONObject json = new JSONObject(new String(settings, StandardCharsets.UTF_8));
-            int schema = json.getInt("schema");
+            schema = json.getInt("schema");
             if (!"kakao-focus-backup".equals(json.optString("format"))
-                    || (schema != 1 && schema != 2))
+                    || (schema != 1 && schema != 2 && schema != 3))
                 throw new IOException("지원하지 않는 백업 형식이야.");
             JSONArray array = json.getJSONArray("rooms");
             if (array.length() != RoomStore.ROOM_COUNT)
@@ -123,7 +130,7 @@ final class BackupStore {
                 rooms[i] = array.getString(i).trim();
                 if (rooms[i].length() > 300) throw new IOException("톡방 이름이 너무 길어.");
             }
-            if (schema == 2) {
+            if (schema >= 2) {
                 JSONArray storedAliases = json.getJSONArray("nicknames");
                 if (storedAliases.length() != RoomStore.ROOM_COUNT)
                     throw new IOException("별명 설정 개수가 올바르지 않아.");
@@ -143,6 +150,25 @@ final class BackupStore {
             inset = json.getInt("inset");
             minutes = json.getInt("pauseMinutes");
             mode = json.getInt("pauseDisplayMode");
+            if (schema == 3) {
+                chatSp = json.getInt("chatSp");
+                compactSp = json.getInt("compactSp");
+                daySp = json.getInt("daySp");
+                insetDp = json.getInt("safeInsetDp");
+                dayTopDp = json.getInt("dayTopDp");
+                dayEndDp = json.getInt("dayEndDp");
+                if (chatSp < 7 || chatSp > 18 || compactSp < 6 || compactSp > 16
+                        || daySp < 4 || daySp > 12 || insetDp < 6 || insetDp > 26
+                        || dayTopDp < 2 || dayTopDp > 30 || dayEndDp < 2 || dayEndDp > 32)
+                    throw new IOException("백업된 위젯 크기·위치 설정이 올바르지 않아.");
+            } else {
+                chatSp = 9 + font;
+                compactSp = 8;
+                daySp = 5;
+                insetDp = 10 + inset * 4;
+                dayTopDp = 9;
+                dayEndDp = 12;
+            }
             if (active < 1 || active > 4 || theme < 0 || theme > 2
                     || font < 0 || font > 2 || align < 0 || align > 2
                     || inset < 0 || inset > 2 || minutes < 1 || minutes > 60
@@ -178,6 +204,10 @@ final class BackupStore {
         RoomStore.saveNicknames(context, aliases);
         RoomStore.saveActiveRooms(context, active);
         RoomStore.saveAppearance(context, theme, font, align, inset);
+        if (schema == 3) {
+            RoomStore.saveWidgetDesign(context, theme, align, chatSp, compactSp,
+                    daySp, insetDp, dayTopDp, dayEndDp);
+        }
         PauseState.saveDurationMinutes(context, minutes);
         PauseState.saveDisplayMode(context, mode);
         NotificationWatcher.refreshConfiguredRooms();
