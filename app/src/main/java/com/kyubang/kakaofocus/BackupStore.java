@@ -35,12 +35,16 @@ final class BackupStore {
         JSONObject json = new JSONObject();
         try {
             json.put("format", "kakao-focus-backup");
-            json.put("schema", 1);
+            json.put("schema", 2);
             json.put("activeRooms", RoomStore.activeRooms(context));
             JSONArray rooms = new JSONArray();
             for (int i = 0; i < RoomStore.ROOM_COUNT; i++)
                 rooms.put(RoomStore.name(context, i));
             json.put("rooms", rooms);
+            JSONArray nicknames = new JSONArray();
+            for (int i = 0; i < RoomStore.ROOM_COUNT; i++)
+                nicknames.put(RoomStore.nickname(context, i));
+            json.put("nicknames", nicknames);
             json.put("theme", RoomStore.theme(context));
             json.put("fontScale", RoomStore.fontScale(context));
             json.put("align", RoomStore.align(context));
@@ -104,11 +108,13 @@ final class BackupStore {
         if (settings == null) throw new IOException("설정 파일이 없는 백업이야.");
 
         String[] rooms = new String[RoomStore.ROOM_COUNT];
+        String[] aliases = new String[RoomStore.ROOM_COUNT];
         final int active, theme, font, align, inset, minutes, mode;
         try {
             JSONObject json = new JSONObject(new String(settings, StandardCharsets.UTF_8));
+            int schema = json.getInt("schema");
             if (!"kakao-focus-backup".equals(json.optString("format"))
-                    || json.getInt("schema") != 1)
+                    || (schema != 1 && schema != 2))
                 throw new IOException("지원하지 않는 백업 형식이야.");
             JSONArray array = json.getJSONArray("rooms");
             if (array.length() != RoomStore.ROOM_COUNT)
@@ -116,6 +122,19 @@ final class BackupStore {
             for (int i = 0; i < rooms.length; i++) {
                 rooms[i] = array.getString(i).trim();
                 if (rooms[i].length() > 300) throw new IOException("톡방 이름이 너무 길어.");
+            }
+            if (schema == 2) {
+                JSONArray storedAliases = json.getJSONArray("nicknames");
+                if (storedAliases.length() != RoomStore.ROOM_COUNT)
+                    throw new IOException("별명 설정 개수가 올바르지 않아.");
+                for (int i = 0; i < aliases.length; i++) {
+                    aliases[i] = storedAliases.getString(i).trim();
+                    if (aliases[i].codePointCount(0, aliases[i].length()) > 12)
+                        throw new IOException("별명이 너무 길어.");
+                }
+            } else {
+                // Backward compatible with previous v2.1/v2.0 backup archives.
+                for (int i = 0; i < aliases.length; i++) aliases[i] = "";
             }
             active = json.getInt("activeRooms");
             theme = json.getInt("theme");
@@ -156,6 +175,7 @@ final class BackupStore {
             if (savedImage != null && !savedImage.isRecycled()) savedImage.recycle();
         }
         RoomStore.saveRooms(context, rooms);
+        RoomStore.saveNicknames(context, aliases);
         RoomStore.saveActiveRooms(context, active);
         RoomStore.saveAppearance(context, theme, font, align, inset);
         PauseState.saveDurationMinutes(context, minutes);
