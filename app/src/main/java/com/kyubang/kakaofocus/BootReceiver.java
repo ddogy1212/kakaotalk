@@ -10,6 +10,9 @@ public final class BootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             RecoveryScheduler.scheduleIfWidgets(context);
             NotificationWatcher.reconnectIfNeeded(context);
+            ExamDay.schedule(context);
+            PauseState.scheduleExpiry(context);
+            PauseWidgetProvider.updateAll(context);
         }
     }
 }
