@@ -55,7 +55,8 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
             for (int i = 0; i < rows.length; i++) {
                 views.setViewVisibility(rows[i], i < active ? View.VISIBLE : View.GONE);
                 if (i >= active) continue;
-                String name = RoomStore.name(context, i);
+                String actualName = RoomStore.name(context, i);
+                String name = RoomStore.displayName(context, i);
                 int count = RoomStore.count(context, i);
                 String label;
                 if (name.isEmpty()) {
