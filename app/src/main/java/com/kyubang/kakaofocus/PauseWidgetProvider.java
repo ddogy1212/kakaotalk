@@ -37,6 +37,7 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
         int accent = theme == 1 ? Color.rgb(180, 53, 112) : Color.rgb(255, 182, 220);
         Bitmap bitmap = PhotoStore.bitmap(context);
         boolean hasPhoto = bitmap != null;
+        int displayMode = hasPhoto ? PauseState.displayMode(context) : 0;
 
         for (int id : ids) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_pause);
@@ -49,20 +50,35 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
 
             PendingIntent target;
             if (remaining > 0) {
-                views.setViewVisibility(R.id.pause_text_panel, View.VISIBLE);
+                // When the user chose "photo only", do not cover the picture with text.
+                views.setViewVisibility(R.id.pause_text_panel,
+                        displayMode == 2 ? View.GONE : View.VISIBLE);
+                views.setViewVisibility(R.id.pause_title,
+                        displayMode == 1 || displayMode == 2 ? View.GONE : View.VISIBLE);
+                views.setViewVisibility(R.id.pause_hint,
+                        displayMode == 1 || displayMode == 2 ? View.GONE : View.VISIBLE);
                 views.setInt(R.id.pause_text_panel, "setBackgroundColor",
-                        hasPhoto ? Color.argb(110, 0, 0, 0) : Color.TRANSPARENT);
+                        hasPhoto ? Color.argb(displayMode == 1 ? 65 : 110, 0, 0, 0)
+                                : Color.TRANSPARENT);
                 views.setTextViewText(R.id.pause_title, "카톡 차단 중");
                 views.setTextViewText(R.id.pause_hint, "끝나면 자동 해제");
-                views.setViewVisibility(R.id.pause_countdown, View.VISIBLE);
-                views.setChronometer(R.id.pause_countdown,
-                        SystemClock.elapsedRealtime() + remaining,
-                        null, true);
-                views.setChronometerCountDown(R.id.pause_countdown, true);
+                views.setViewVisibility(R.id.pause_countdown,
+                        displayMode == 2 ? View.GONE : View.VISIBLE);
+                views.setTextViewTextSize(R.id.pause_countdown,
+                        android.util.TypedValue.COMPLEX_UNIT_SP,
+                        displayMode == 1 ? 9f : 14f);
+                if (displayMode != 2) {
+                    views.setChronometer(R.id.pause_countdown,
+                            SystemClock.elapsedRealtime() + remaining,
+                            null, true);
+                    views.setChronometerCountDown(R.id.pause_countdown, true);
+                }
                 Intent details = new Intent(context, MainActivity.class);
                 target = PendingIntent.getActivity(context, 510, details,
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             } else {
+                views.setViewVisibility(R.id.pause_title, View.VISIBLE);
+                views.setViewVisibility(R.id.pause_hint, View.VISIBLE);
                 views.setViewVisibility(R.id.pause_countdown, View.GONE);
                 // When a photo is set, the idle widget is just the selected image.
                 boolean showText = !hasPhoto || !enabled;
