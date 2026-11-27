@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Spinner;
@@ -42,7 +43,7 @@ public class MainActivity extends Activity {
         scroll.addView(layout);
         setContentView(scroll);
 
-        TextView heading = text("카톡 한눈에 3 💌", 25, true);
+        TextView heading = text("카톡 한눈에 4 💌", 25, true);
         heading.setTextColor(pink);
         layout.addView(heading);
 
@@ -103,7 +104,7 @@ public class MainActivity extends Activity {
         save.setOnClickListener(v -> saveRooms());
 
         addWithTop(layout, text("🎨 3. 위젯 디자인", 18, true), 24);
-        addWithTop(layout, text("2×1 크기는 유지하면서 색상과 글자 크기만 바꿔.", 13, false), 7);
+        addWithTop(layout, text("굿락 LockStar 잠금화면에서도 쓰도록 정렬과 모서리 여백을 조절할 수 있어.", 13, false), 7);
 
         Spinner themePicker = new Spinner(this);
         ArrayAdapter<String> themeItems = new ArrayAdapter<>(this,
@@ -123,14 +124,37 @@ public class MainActivity extends Activity {
         sizePicker.setSelection(RoomStore.fontScale(this));
         addWithTop(layout, sizePicker, 8);
 
-        Button applyTheme = button("위젯 디자인 적용");
+        addWithTop(layout, text("✏️ 글씨 정렬", 15, true), 12);
+        Spinner alignPicker = new Spinner(this);
+        ArrayAdapter<String> alignItems = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"왼쪽 정렬", "가운데 정렬", "오른쪽 정렬"});
+        alignItems.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        alignPicker.setAdapter(alignItems);
+        alignPicker.setSelection(RoomStore.align(this));
+        addWithTop(layout, alignPicker, 5);
+
+        addWithTop(layout, text("🛡️ 둥근 모서리 보호 여백", 15, true), 12);
+        Spinner insetPicker = new Spinner(this);
+        ArrayAdapter<String> insetItems = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"작게 · 10dp", "보통 · 14dp (추천)", "넓게 · 18dp"});
+        insetItems.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        insetPicker.setAdapter(insetItems);
+        insetPicker.setSelection(RoomStore.inset(this));
+        addWithTop(layout, insetPicker, 5);
+        addWithTop(layout, text("굿락에서 글씨가 테두리에 걸리면 '넓게'를 선택해. 너무 좁은 위젯에서는 방 이름이 짧게 보일 수 있어.", 12, false), 6);
+
+        Button applyTheme = button("위젯 디자인 · 정렬 적용");
         addWithTop(layout, applyTheme, 9);
         applyTheme.setOnClickListener(v -> {
             RoomStore.saveAppearance(this, themePicker.getSelectedItemPosition(),
-                    sizePicker.getSelectedItemPosition());
+                    sizePicker.getSelectedItemPosition(),
+                    alignPicker.getSelectedItemPosition(),
+                    insetPicker.getSelectedItemPosition());
             WidgetUpdater.updateAll(this);
             renderStatus();
-            Toast.makeText(this, "위젯 색상과 글자 크기를 적용했어!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "색상 · 크기 · 정렬 · 여백을 적용했어!", Toast.LENGTH_SHORT).show();
         });
 
         addWithTop(layout, text("📱 위젯 표시 미리보기", 18, true), 24);
@@ -225,7 +249,10 @@ public class MainActivity extends Activity {
                 : selectedTheme == 2 ? Color.rgb(77, 69, 82) : Color.rgb(41, 36, 47);
         previewView.setBackgroundColor(bg);
         previewView.setTextColor(selectedTheme == 1 ? ink : Color.WHITE);
-        previewView.setTextSize(10f + RoomStore.fontScale(this));
+        previewView.setTextSize(9f + RoomStore.fontScale(this));
+        previewView.setGravity(Gravity.CENTER_VERTICAL | WidgetUpdater.horizontalGravity(this));
+        int safe = dp(WidgetUpdater.insetDp(this));
+        previewView.setPadding(safe, dp(6), safe, dp(6));
         StringBuilder preview = new StringBuilder();
         for (int i = 0; i < RoomStore.ROOM_COUNT; i++) {
             String name = RoomStore.name(this, i);
