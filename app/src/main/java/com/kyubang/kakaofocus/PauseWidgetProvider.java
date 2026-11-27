@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.SystemClock;
 import android.view.View;
@@ -25,25 +26,34 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         int[] ids = manager.getAppWidgetIds(new ComponentName(context, PauseWidgetProvider.class));
         if (ids == null || ids.length == 0) return;
+
         boolean enabled = PauseState.accessibilityEnabled(context);
         long remaining = PauseState.remaining(context);
+        int minutes = PauseState.durationMinutes(context);
         int theme = RoomStore.theme(context);
         int bg = theme == 1 ? R.drawable.widget_bg_light
                 : theme == 2 ? R.drawable.widget_bg_translucent : R.drawable.widget_bg;
         int base = theme == 1 ? Color.rgb(45, 37, 49) : Color.WHITE;
         int accent = theme == 1 ? Color.rgb(180, 53, 112) : Color.rgb(255, 182, 220);
+        Bitmap bitmap = PhotoStore.bitmap(context, true);
+        boolean hasPhoto = bitmap != null;
 
         for (int id : ids) {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_pause);
             views.setInt(R.id.pause_root, "setBackgroundResource", bg);
-            views.setTextColor(R.id.pause_title, base);
-            views.setTextColor(R.id.pause_hint, accent);
-            views.setTextColor(R.id.pause_countdown, accent);
+            views.setViewVisibility(R.id.pause_photo, hasPhoto ? View.VISIBLE : View.GONE);
+            if (hasPhoto) views.setImageViewBitmap(R.id.pause_photo, bitmap);
+            views.setTextColor(R.id.pause_title, hasPhoto ? Color.WHITE : base);
+            views.setTextColor(R.id.pause_hint, hasPhoto ? Color.WHITE : accent);
+            views.setTextColor(R.id.pause_countdown, hasPhoto ? Color.WHITE : accent);
 
             PendingIntent target;
-            if (remaining > 0L) {
+            if (remaining > 0) {
+                views.setViewVisibility(R.id.pause_text_panel, View.VISIBLE);
+                views.setInt(R.id.pause_text_panel, "setBackgroundColor",
+                        hasPhoto ? Color.argb(110, 0, 0, 0) : Color.TRANSPARENT);
                 views.setTextViewText(R.id.pause_title, "카톡 차단 중");
-                views.setTextViewText(R.id.pause_hint, "10분 후 자동 해제");
+                views.setTextViewText(R.id.pause_hint, "끝나면 자동 해제");
                 views.setViewVisibility(R.id.pause_countdown, View.VISIBLE);
                 views.setChronometer(R.id.pause_countdown,
                         SystemClock.elapsedRealtime() + remaining,
@@ -54,9 +64,15 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             } else {
                 views.setViewVisibility(R.id.pause_countdown, View.GONE);
-                views.setTextViewText(R.id.pause_title, "카톡 10분");
+                // When a photo is set, the idle widget is just the selected image.
+                boolean showText = !hasPhoto || !enabled;
+                views.setViewVisibility(R.id.pause_text_panel,
+                        showText ? View.VISIBLE : View.GONE);
+                views.setInt(R.id.pause_text_panel, "setBackgroundColor",
+                        hasPhoto ? Color.argb(110, 0, 0, 0) : Color.TRANSPARENT);
+                views.setTextViewText(R.id.pause_title, "카톡 " + minutes + "분");
                 views.setTextViewText(R.id.pause_hint,
-                        enabled ? "눌러서 차단" : "권한 설정 필요");
+                        enabled ? "누르면 시작" : "권한 설정 필요");
                 if (enabled) {
                     Intent start = new Intent(context, PauseActionReceiver.class);
                     start.setAction(PauseActionReceiver.ACTION_START);
@@ -71,5 +87,6 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
             views.setOnClickPendingIntent(R.id.pause_root, target);
             manager.updateAppWidget(id, views);
         }
+        if (bitmap != null) bitmap.recycle();
     }
 }
