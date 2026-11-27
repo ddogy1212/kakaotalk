@@ -81,6 +81,7 @@ final class RoomStore {
 
     static void bindConversation(Context c, int index, String token) {
         if (index < 0 || index >= ROOM_COUNT) return;
+        if (token == null) token = "";
         SharedPreferences.Editor editor = prefs(c).edit();
         // A single conversation cannot silently count towards two configured rooms.
         for (int i = 0; i < ROOM_COUNT; i++)
