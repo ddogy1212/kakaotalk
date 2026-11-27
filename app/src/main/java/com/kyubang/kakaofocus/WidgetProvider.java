@@ -7,6 +7,7 @@ import android.content.Context;
 public class WidgetProvider extends AppWidgetProvider {
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
+        NotificationWatcher.reconnectIfNeeded(context);
         WidgetUpdater.updateAll(context);
     }
 
