@@ -228,10 +228,14 @@ public final class MainActivity extends Activity {
         previewView.addView(previewPositioner,
                 new FrameLayout.LayoutParams(-1, -1));
         previewDay = text("", 7, false);
-        previewDay.setTextSize(5.5f);
+        previewDay.setTextSize(5f);
         previewDay.setSingleLine(true);
-        previewView.addView(previewDay,
-                new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END));
+        FrameLayout.LayoutParams dayPlacement =
+                new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+        // The preview matches the actual widget's safety inset inside rounded corners.
+        dayPlacement.topMargin = dp(9);
+        dayPlacement.rightMargin = dp(12);
+        previewView.addView(previewDay, dayPlacement);
         LinearLayout.LayoutParams previewBox = new LinearLayout.LayoutParams(-1, dp(122));
         previewBox.topMargin = dp(8);
         widgetsPanel.addView(previewView, previewBox);
@@ -457,7 +461,7 @@ public final class MainActivity extends Activity {
 
         previewDay.setText(ExamDay.label());
         previewDay.setTextColor(accent);
-        previewDay.setTextSize(5.5f);
+        previewDay.setTextSize(5f);
         for (int i = 0; i < RoomStore.activeRooms(this); i++) {
             String original = RoomStore.name(this, i);
             boolean missing = original.isEmpty();
