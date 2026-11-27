@@ -487,7 +487,9 @@ public final class MainActivity extends Activity {
     }
 
     private void addWithTop(LinearLayout root, View view, int margin) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
+        LinearLayout.LayoutParams p = view instanceof ImageView
+                ? new LinearLayout.LayoutParams(dp(96), dp(96))
+                : new LinearLayout.LayoutParams(-1, -2);
         p.topMargin = dp(margin);
         root.addView(view, p);
     }
