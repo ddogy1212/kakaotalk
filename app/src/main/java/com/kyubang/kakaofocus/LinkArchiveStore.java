@@ -85,9 +85,9 @@ final class LinkArchiveStore extends SQLiteOpenHelper {
             }
             break;
         }
-        if (raw.startsWith("www.")) raw = "https://" + raw;
-        if (!(raw.startsWith("http://") || raw.startsWith("https://")
-                || raw.startsWith("HTTP://") || raw.startsWith("HTTPS://"))) return "";
+        if (raw.regionMatches(true, 0, "www.", 0, 4)) raw = "https://" + raw;
+        if (!(raw.regionMatches(true, 0, "http://", 0, 7)
+                || raw.regionMatches(true, 0, "https://", 0, 8))) return "";
         if (raw.length() > 2048) return "";
         try {
             URI uri = new URI(raw);
@@ -160,7 +160,7 @@ final class LinkArchiveStore extends SQLiteOpenHelper {
                 || host.contains("blog.naver") || host.contains("tistory."))
             return "SNS·커뮤니티";
         if (host.contains("maps.") || host.contains("map.")
-                || host.contains("place.") || host.contains("kakao.com")
+                || host.contains("place.") || host.contains("kakaomap")
                 || host.contains("naver.me") || host.contains("goo.gl/maps"))
             return "지도·장소";
         if (host.contains("github.") || host.contains("stackoverflow.")
@@ -251,10 +251,10 @@ final class LinkArchiveStore extends SQLiteOpenHelper {
         StringBuilder where = new StringBuilder("1=1");
         ArrayList<String> args = new ArrayList<>();
         if (query != null && !query.trim().isEmpty()) {
-            where.append(" AND (title LIKE ? OR url LIKE ? OR source LIKE ? OR category LIKE ? OR note LIKE ?)");
-            String escaped = query.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-            // Since LIKE has no ESCAPE by default, use literal substring as supplied.
-            String pattern = "%" + query.trim() + "%";
+            where.append(" AND (title LIKE ? ESCAPE '!' OR url LIKE ? ESCAPE '!' OR source LIKE ? ESCAPE '!' OR category LIKE ? ESCAPE '!' OR note LIKE ? ESCAPE '!')");
+            // Treat %, _ and ! in the search box as literal characters.
+            String pattern = "%" + query.trim().replace("!", "!!")
+                    .replace("%", "!%").replace("_", "!_") + "%";
             for (int i = 0; i < 5; i++) args.add(pattern);
         }
         if (category != null && !category.isEmpty() && !category.equals("전체")) {
