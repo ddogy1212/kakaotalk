@@ -166,9 +166,7 @@ final class WidgetUpdater {
                 views.setInt(rows[i], "setGravity", gravity);
             }
 
-            Intent destination = anyAlert
-                    ? app.getPackageManager().getLaunchIntentForPackage("com.kakao.talk") : null;
-            if (destination == null) destination = new Intent(app, MainActivity.class);
+            Intent destination = new Intent(app, MiniChatActivity.class);
             destination.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent pending = PendingIntent.getActivity(app, 0, destination,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

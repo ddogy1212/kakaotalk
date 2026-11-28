@@ -324,12 +324,11 @@ public class NotificationWatcher extends NotificationListenerService {
         final android.app.RemoteInput input;
         MiniReply(Notification.Action a,android.app.RemoteInput i){action=a;input=i;}
     }
-    private MiniReply findMiniReply() {
-        // Re-read active notifications every time. Only a single, free-form reply action
-        // from Kakao itself is accepted; never guess among multiple reply targets.
-        List<MiniTarget> matches=selectedMini(getActiveNotifications());
-        if(matches.isEmpty())return null;
-        Notification.Action[] actions=matches.get(0).sbn.getNotification().actions;
+    // Failed handles are not retried. A new active notification can supply a new action.
+    private final java.util.LinkedHashSet<android.app.PendingIntent> rejectedMiniReplies =
+            new java.util.LinkedHashSet<>();
+    private MiniReply replyFrom(MiniTarget target) {
+        Notification.Action[] actions=target.sbn.getNotification().actions;
         if(actions==null)return null;
         MiniReply result=null;
         for(Notification.Action a:actions) {
@@ -345,31 +344,60 @@ public class NotificationWatcher extends NotificationListenerService {
         }
         return result;
     }
-    static boolean miniCanReply() {
-        NotificationWatcher w=current;
-        if(w==null)return false;
-        try{return w.findMiniReply()!=null;}catch(RuntimeException ignored){return false;}
+    private List<MiniReply> findMiniReplies() {
+        // Only live, strictly bound notifications are eligible. Do not hold or reuse
+        // an action after its notification disappears, and never create a Kakao intent.
+        List<MiniReply> found=new ArrayList<>();
+        java.util.HashSet<android.app.PendingIntent> seen=new java.util.HashSet<>();
+        for(MiniTarget target:selectedMini(getActiveNotifications())) {
+            MiniReply r=replyFrom(target);
+            if(r!=null&&!rejectedMiniReplies.contains(r.action.actionIntent)
+                &&seen.add(r.action.actionIntent))found.add(r);
+        }
+        return found;
     }
+    static int miniReplyCount() {
+        NotificationWatcher w=current;
+        if(w==null)return 0;
+        try{return w.findMiniReplies().size();}catch(RuntimeException ignored){return 0;}
+    }
+    static boolean miniCanReply() { return miniReplyCount()>0; }
     static boolean miniSend(Context context,String expectedToken,String expectedLabel,String body) {
         NotificationWatcher w=current;
-        if(w==null||body==null||body.trim().isEmpty()||body.length()>2000||
+        if(w==null||expectedToken.isEmpty()||body==null||body.trim().isEmpty()||body.length()>2000||
            !expectedToken.equals(MiniChatStore.token(context))||
            !expectedLabel.equals(MiniChatStore.label(context)))return false;
         android.app.KeyguardManager km=(android.app.KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);
         if(km==null||km.isDeviceLocked()||km.isKeyguardLocked())return false;
         try {
-            MiniReply r=w.findMiniReply();
-            if(r==null)return false;
-            Intent fill=new Intent();
-            Bundle results=new Bundle();
-            results.putCharSequence(r.input.getResultKey(),body);
-            android.app.RemoteInput.addResultsToIntent(new android.app.RemoteInput[]{r.input},fill,results);
-            if(Build.VERSION.SDK_INT>=28)android.app.RemoteInput.setResultsSource(fill,android.app.RemoteInput.SOURCE_FREE_FORM_INPUT);
-            r.action.actionIntent.send(context,0,fill);
-            long at=System.currentTimeMillis();
-            MiniChatStore.add(new MiniChatStore.Line(body,"out|"+java.util.UUID.randomUUID(),at,true));
-            return true;
-        }catch(android.app.PendingIntent.CanceledException|RuntimeException e){return false;}
+            List<MiniReply> candidates=w.findMiniReplies();
+            for(MiniReply r:candidates) {
+                // Validate again before invoking each candidate to avoid a stale snapshot.
+                boolean live=false;
+                for(MiniReply currentReply:w.findMiniReplies())
+                    if(r.action.actionIntent.equals(currentReply.action.actionIntent)
+                        &&r.input.getResultKey().equals(currentReply.input.getResultKey())){live=true;break;}
+                if(!live)continue;
+                Intent fill=new Intent();
+                Bundle results=new Bundle();
+                results.putCharSequence(r.input.getResultKey(),body);
+                android.app.RemoteInput.addResultsToIntent(new android.app.RemoteInput[]{r.input},fill,results);
+                if(Build.VERSION.SDK_INT>=28)android.app.RemoteInput.setResultsSource(fill,android.app.RemoteInput.SOURCE_FREE_FORM_INPUT);
+                try {
+                    r.action.actionIntent.send(context,0,fill);
+                } catch(android.app.PendingIntent.CanceledException canceled) {
+                    w.rejectedMiniReplies.add(r.action.actionIntent);
+                    if(w.rejectedMiniReplies.size()>128)
+                        w.rejectedMiniReplies.remove(w.rejectedMiniReplies.iterator().next());
+                    // CanceledException means no dispatch occurred; another live handle may work.
+                    continue;
+                }
+                long at=System.currentTimeMillis();
+                MiniChatStore.add(new MiniChatStore.Line(body,"out|"+java.util.UUID.randomUUID(),at,true));
+                return true;
+            }
+        }catch(RuntimeException e){return false;}
+        return false;
     }
 
     /** Only extracts text from notifications currently present in Android's shade. */

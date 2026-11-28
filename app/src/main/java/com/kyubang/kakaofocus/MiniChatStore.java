@@ -32,7 +32,7 @@ final class MiniChatStore {
         clear();
         prefs(c).edit().putString("token", token).putString("label", label).apply();
     }
-    static boolean autoClose(Context c) { return prefs(c).getBoolean("close", true); }
+    static boolean autoClose(Context c) { return prefs(c).getBoolean("close", false); }
     static boolean showCount(Context c) { return prefs(c).getBoolean("count", true); }
     static int opacity(Context c) { return prefs(c).getInt("opacity", 95); }
     static int font(Context c) { return prefs(c).getInt("font", 14); }

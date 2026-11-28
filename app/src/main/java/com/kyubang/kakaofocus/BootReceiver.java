@@ -15,6 +15,7 @@ public final class BootReceiver extends BroadcastReceiver {
             PauseState.scheduleExpiry(context);
             PauseWidgetProvider.updateAll(context);
             MiniChatWidgetProvider.updateAll(context);
+            WidgetUpdater.updateAll(context);
         }
     }
 }

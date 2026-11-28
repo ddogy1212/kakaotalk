@@ -79,9 +79,7 @@ public final class CompactWidgetProvider extends AppWidgetProvider {
                 views.setInt(rows[i], "setGravity",
                         Gravity.CENTER_VERTICAL | WidgetUpdater.horizontalGravity(context));
             }
-            Intent intent = anyAlert
-                    ? context.getPackageManager().getLaunchIntentForPackage("com.kakao.talk") : null;
-            if (intent == null) intent = new Intent(context, MainActivity.class);
+            Intent intent = new Intent(context, MiniChatActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent open = PendingIntent.getActivity(context, 420, intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

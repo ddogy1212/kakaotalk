@@ -47,12 +47,13 @@ public final class MiniChatActivity extends Activity {
         getWindow().setDimAmount(.18f);
         if(locked()){finish();return;}
         token=MiniChatStore.token(this);label=MiniChatStore.label(this);
-        if(token.isEmpty()){startActivity(new Intent(this,MiniChatSettingsActivity.class));finish();return;}
+        // Widget taps never open the settings or the Kakao app.
+        // An unconfigured widget displays the same small dialog in a disabled state.
         LinearLayout panel=new LinearLayout(this);panel.setOrientation(1);panel.setPadding(dp(13),dp(10),dp(13),dp(10));
         int a=Math.round(MiniChatStore.opacity(this)*2.55f);
         panel.setBackground(bg(Color.argb(a,30,29,34),22));
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title=text(label,17,ink);title.setTypeface(null,Typeface.BOLD);
+        TextView title=text(token.isEmpty()?"미니 채팅":label,17,ink);title.setTypeface(null,Typeface.BOLD);
         title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         header.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         Button close=new Button(this);close.setText("×");close.setTextSize(24);close.setContentDescription("닫기");
@@ -65,7 +66,9 @@ public final class MiniChatActivity extends Activity {
         panel.addView(scroll,new LinearLayout.LayoutParams(-1,h));
         LinearLayout composer=new LinearLayout(this);composer.setGravity(Gravity.CENTER_VERTICAL);
         draft=new EditText(this);draft.setTextColor(ink);draft.setHintTextColor(muted);draft.setTextSize(MiniChatStore.font(this));
-        draft.setHint("답장 입력");draft.setMaxLines(3);draft.setSaveEnabled(false);
+        draft.setHint("답장 입력 · 줄바꿈 가능");draft.setMaxLines(5);draft.setSaveEnabled(false);
+        draft.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE|android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        draft.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_ENTER_ACTION);
         draft.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(2000)});
         draft.setPadding(dp(12),dp(9),dp(12),dp(9));draft.setBackground(bg(0xff37343c,17));
         composer.addView(draft,new LinearLayout.LayoutParams(0,-2,1));
@@ -75,13 +78,13 @@ public final class MiniChatActivity extends Activity {
             String body=draft.getText().toString().trim();
             if(body.isEmpty())return;
             if(!NotificationWatcher.miniSend(this,token,label,body)){
-                Toast.makeText(this,"답장 기능이 만료되었거나 대화 확인이 필요해.",Toast.LENGTH_LONG).show();render();return;
+                Toast.makeText(this,"사용 가능한 답장 알림이 없어. 작성한 내용은 그대로 유지했어.",Toast.LENGTH_LONG).show();render();return;
             }
             draft.setText("");
             Toast.makeText(this,"카톡에 답장 요청을 전달했어. 수신 확인은 불가해.",Toast.LENGTH_SHORT).show();
             if(MiniChatStore.autoClose(this))finish();else render();
         });
-        TextView note=text("알림 기반 · 전송 요청은 실제 전달 확인과 다름",10,muted);note.setGravity(Gravity.CENTER);note.setPadding(0,dp(7),0,0);panel.addView(note);
+        TextView note=text("여러 문장은 줄바꿈으로 한 번에 보낼 수 있어.\n전송 요청은 실제 전달 확인과 다름",10,muted);note.setGravity(Gravity.CENTER);note.setPadding(0,dp(7),0,0);panel.addView(note);
         setContentView(panel);getWindow().setLayout((int)(getResources().getDisplayMetrics().widthPixels*MiniChatStore.width(this)/100f),-2);
         getWindow().setGravity(Gravity.CENTER);
         setFinishOnTouchOutside(true);
@@ -89,10 +92,14 @@ public final class MiniChatActivity extends Activity {
     }
     private void render(){
         if(isFinishing()||messages==null)return;
-        boolean connected=NotificationWatcher.isConnected(), can=connected&&NotificationWatcher.miniCanReply()&&!locked();
-        status.setText(!connected?"알림 접근 연결 필요":can?"알림 답장 가능":"새 답장 가능 알림을 기다리는 중");
+        boolean configured=!token.isEmpty();
+        boolean connected=NotificationWatcher.isConnected();
+        int available=configured&&connected?NotificationWatcher.miniReplyCount():0;
+        boolean can=available>0&&!locked();
+        status.setText(!configured?"앱의 톡방 관리에서 미니 채팅을 연결해 줘.":!connected?"알림 접근 연결 필요":can?"답장 가능 알림 "+available+"개":"새 답장 가능 알림을 기다리는 중");
+        draft.setEnabled(configured);
         send.setEnabled(can);send.setAlpha(can?1f:.45f);
-        List<MiniChatStore.Line> lines=MiniChatStore.lines();
+        List<MiniChatStore.Line> lines=configured?MiniChatStore.lines():Collections.emptyList();
         StringBuilder fingerprint=new StringBuilder();for(MiniChatStore.Line l:lines)fingerprint.append(l.id).append('|');
         String fresh=fingerprint.toString();
         if(!fresh.equals(rendered)||messages.getChildCount()==0){
