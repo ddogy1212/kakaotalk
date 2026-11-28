@@ -17,8 +17,8 @@ android {
         minSdk 26
         targetSdk 34
         // Increase versionCode by >=1 for EACH subsequent installed update.
-        versionCode 21
-        versionName '3.1'
+        versionCode 22
+        versionName '3.2'
     }
 
     signingConfigs {
