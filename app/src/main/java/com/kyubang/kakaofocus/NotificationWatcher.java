@@ -82,7 +82,7 @@ public class NotificationWatcher extends NotificationListenerService {
             rememberNotification(sbn);
             Notification n = sbn.getNotification();
             if (n != null && n.extras != null
-                    && (n.flags & Notification.FLAG_GROUP_SUMMARY) == 0) {
+                    && (n.flags & Notification.FLAG_ONGOING_EVENT) == 0) {
                 try (LinkArchiveStore archive = new LinkArchiveStore(this)) {
                     String source = value(n.extras, Notification.EXTRA_CONVERSATION_TITLE);
                     if (source.isEmpty()) source = value(n.extras, HIDDEN_TITLE);
@@ -201,6 +201,13 @@ public class NotificationWatcher extends NotificationListenerService {
             for (StatusBarNotification sbn : active) {
                 if (!isEligible(sbn, true)) continue;
                 try {
+                    Notification n = sbn.getNotification();
+                    try (LinkArchiveStore archive = new LinkArchiveStore(this)) {
+                        String source = value(n.extras, Notification.EXTRA_CONVERSATION_TITLE);
+                        if (source.isEmpty()) source = value(n.extras, HIDDEN_TITLE);
+                        if (source.isEmpty()) source = value(n.extras, Notification.EXTRA_TITLE);
+                        archive.saveNotification(n, source);
+                    }
                     matchEntry(sbn, rooms, counts, true);
                 } catch (RuntimeException ignored) {}
             }
