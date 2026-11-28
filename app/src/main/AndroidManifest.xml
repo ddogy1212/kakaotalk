@@ -22,6 +22,14 @@
                 <data android:mimeType="text/plain"/>
             </intent-filter>
         </activity>
+        <activity android:name=".MiniChatSettingsActivity" android:exported="false"/>
+        <activity android:name=".MiniChatActivity" android:exported="false"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.Material.Dialog.NoActionBar"
+            android:windowSoftInputMode="adjustResize|stateAlwaysHidden"/>
+        <receiver android:name=".MiniChatWidgetProvider" android:exported="true" android:label="미니 채팅 1×1">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info_mini_chat"/>
+        </receiver>
         <activity android:name=".InsightsActivity" android:exported="false"/>
         <activity android:name=".KakaoUsageActivity" android:exported="false"/>
         <activity android:name=".CropActivity" android:exported="false"

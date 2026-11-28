@@ -58,6 +58,8 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onListenerDisconnected() {
         if (current == this) current = null;
         RoomStore.setConnected(this, false);
+        MiniChatStore.clear();
+        MiniChatWidgetProvider.updateAll(this);
         RoomInsightsStore.clearPreviews(this);
         WidgetUpdater.updateAll(this);
         try {
@@ -69,6 +71,8 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onDestroy() {
         if (current == this) current = null;
         RoomStore.setConnected(this, false);
+        MiniChatStore.clear();
+        MiniChatWidgetProvider.updateAll(this);
         RoomInsightsStore.clearPreviews(this);
         WidgetUpdater.updateAll(this);
         super.onDestroy();
@@ -160,6 +164,7 @@ public class NotificationWatcher extends NotificationListenerService {
             WidgetUpdater.updateAll(this);
             return;
         }
+        refreshMiniChat(active);
         int[] counts = new int[RoomStore.ROOM_COUNT];
         String[] rooms = new String[RoomStore.ROOM_COUNT];
         @SuppressWarnings("unchecked")
@@ -216,6 +221,154 @@ public class NotificationWatcher extends NotificationListenerService {
         RoomStore.saveCounts(this, counts);
         RoomStore.setConnected(this, true);
         WidgetUpdater.updateAll(this);
+    }
+
+    // Mini chat is deliberately separate from the fuzzy matching used for count widgets.
+    // Never route a reply using a name alone or a group summary.
+    static final class MiniTarget {
+        final String token,label;
+        final StatusBarNotification sbn;
+        MiniTarget(String token,String label,StatusBarNotification sbn) {
+            this.token=token; this.label=label; this.sbn=sbn;
+        }
+    }
+    private MiniTarget miniTarget(StatusBarNotification sbn) {
+        if(!isEligible(sbn,false)) return null;
+        ShortcutInfo shortcut=conversationShortcut(sbn);
+        String identity=rawIdentity(sbn,shortcut);
+        if(identity.isEmpty()) return null;
+        Bundle e=sbn.getNotification().extras;
+        String label=value(e,Notification.EXTRA_CONVERSATION_TITLE);
+        if(label.isEmpty())label=value(e,HIDDEN_TITLE);
+        if(label.isEmpty()&&shortcut!=null&&shortcut.getShortLabel()!=null)
+            label=shortcut.getShortLabel().toString().trim();
+        if(label.isEmpty()&&!e.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION,false))
+            label=value(e,Notification.EXTRA_TITLE);
+        if(isGeneric(label))return null;
+        String token=RoomStore.conversationToken(this,identity);
+        if(token.isEmpty()) return null;
+        return new MiniTarget(token,label,sbn);
+    }
+    private List<MiniTarget> miniTargets(StatusBarNotification[] active) {
+        List<MiniTarget> result=new ArrayList<>();
+        if(active!=null) for(StatusBarNotification s:active) {
+            try { MiniTarget t=miniTarget(s); if(t!=null)result.add(t); }
+            catch(RuntimeException ignored){}
+        }
+        result.sort((a,b)->Long.compare(b.sbn.getPostTime(),a.sbn.getPostTime()));
+        return result;
+    }
+    static List<MiniTarget> miniChoices() {
+        NotificationWatcher w=current;
+        if(w==null)return new ArrayList<>();
+        try {
+            List<MiniTarget> all=w.miniTargets(w.getActiveNotifications());
+            List<MiniTarget> result=new ArrayList<>();
+            for(MiniTarget t:all) {
+                boolean ambiguous=false,duplicate=false;
+                for(MiniTarget other:all)
+                    if(t.token.equals(other.token)&&!t.label.equals(other.label))ambiguous=true;
+                for(MiniTarget old:result)if(t.token.equals(old.token))duplicate=true;
+                if(!ambiguous&&!duplicate)result.add(t);
+            }
+            return result;
+        }catch(RuntimeException e){return new ArrayList<>();}
+    }
+    private List<MiniTarget> selectedMini(StatusBarNotification[] active) {
+        String token=MiniChatStore.token(this),label=MiniChatStore.label(this);
+        List<MiniTarget> found=new ArrayList<>();
+        if(token.isEmpty())return found;
+        for(MiniTarget t:miniTargets(active)) {
+            if(!token.equals(t.token))continue;
+            if(!label.equals(t.label))return new ArrayList<>();
+            found.add(t);
+        }
+        return found;
+    }
+    private void refreshMiniChat(StatusBarNotification[] active) {
+        for(MiniTarget t:selectedMini(active)) {
+            try {
+                Notification n=t.sbn.getNotification();
+                Parcelable[] bundles=n.extras.getParcelableArray(Notification.EXTRA_MESSAGES);
+                boolean added=false;
+                if(bundles!=null) {
+                    for(Notification.MessagingStyle.Message m:
+                        Notification.MessagingStyle.Message.getMessagesFromBundleArray(bundles)) {
+                        if(m==null||m.getText()==null||m.getSender()==null)continue;
+                        String body=m.getText().toString();
+                        long at=m.getTimestamp()>0?m.getTimestamp():t.sbn.getPostTime();
+                        String id="in|"+at+"|"+m.getSender()+"|"+body;
+                        MiniChatStore.add(new MiniChatStore.Line(body,id,at,false));
+                        added=true;
+                    }
+                }
+                if(!added) {
+                    CharSequence body=n.extras.getCharSequence(Notification.EXTRA_TEXT);
+                    if(body!=null&&body.length()>0) {
+                        long at=n.when>0?n.when:t.sbn.getPostTime();
+                        MiniChatStore.add(new MiniChatStore.Line(body.toString(),
+                            "in|"+at+"|"+body,at,false));
+                    }
+                }
+            }catch(RuntimeException ignored){}
+        }
+        MiniChatWidgetProvider.updateAll(this);
+    }
+    static void refreshMini() {
+        NotificationWatcher w=current;
+        if(w!=null)try{w.refreshMiniChat(w.getActiveNotifications());}catch(RuntimeException ignored){}
+    }
+    private static final class MiniReply {
+        final Notification.Action action;
+        final android.app.RemoteInput input;
+        MiniReply(Notification.Action a,android.app.RemoteInput i){action=a;input=i;}
+    }
+    private MiniReply findMiniReply() {
+        // Re-read active notifications every time. Only a single, free-form reply action
+        // from Kakao itself is accepted; never guess among multiple reply targets.
+        List<MiniTarget> matches=selectedMini(getActiveNotifications());
+        if(matches.isEmpty())return null;
+        Notification.Action[] actions=matches.get(0).sbn.getNotification().actions;
+        if(actions==null)return null;
+        MiniReply result=null;
+        for(Notification.Action a:actions) {
+            if(a==null||a.actionIntent==null||
+                    !KAKAO_PACKAGE.equals(a.actionIntent.getCreatorPackage()))continue;
+            if(Build.VERSION.SDK_INT>=31&&(a.actionIntent.isImmutable()||a.isAuthenticationRequired()))continue;
+            if(Build.VERSION.SDK_INT>=28&&a.getSemanticAction()!=Notification.Action.SEMANTIC_ACTION_REPLY
+                &&a.getSemanticAction()!=Notification.Action.SEMANTIC_ACTION_NONE)continue;
+            android.app.RemoteInput[] inputs=a.getRemoteInputs();
+            if(inputs==null||inputs.length!=1||!inputs[0].getAllowFreeFormInput())continue;
+            if(result!=null)return null;
+            result=new MiniReply(a,inputs[0]);
+        }
+        return result;
+    }
+    static boolean miniCanReply() {
+        NotificationWatcher w=current;
+        if(w==null)return false;
+        try{return w.findMiniReply()!=null;}catch(RuntimeException ignored){return false;}
+    }
+    static boolean miniSend(Context context,String expectedToken,String expectedLabel,String body) {
+        NotificationWatcher w=current;
+        if(w==null||body==null||body.trim().isEmpty()||body.length()>2000||
+           !expectedToken.equals(MiniChatStore.token(context))||
+           !expectedLabel.equals(MiniChatStore.label(context)))return false;
+        android.app.KeyguardManager km=(android.app.KeyguardManager)context.getSystemService(Context.KEYGUARD_SERVICE);
+        if(km==null||km.isDeviceLocked()||km.isKeyguardLocked())return false;
+        try {
+            MiniReply r=w.findMiniReply();
+            if(r==null)return false;
+            Intent fill=new Intent();
+            Bundle results=new Bundle();
+            results.putCharSequence(r.input.getResultKey(),body);
+            android.app.RemoteInput.addResultsToIntent(new android.app.RemoteInput[]{r.input},fill,results);
+            if(Build.VERSION.SDK_INT>=28)android.app.RemoteInput.setResultsSource(fill,android.app.RemoteInput.SOURCE_FREE_FORM_INPUT);
+            r.action.actionIntent.send(context,0,fill);
+            long at=System.currentTimeMillis();
+            MiniChatStore.add(new MiniChatStore.Line(body,"out|"+java.util.UUID.randomUUID(),at,true));
+            return true;
+        }catch(android.app.PendingIntent.CanceledException|RuntimeException e){return false;}
     }
 
     /** Only extracts text from notifications currently present in Android's shade. */
