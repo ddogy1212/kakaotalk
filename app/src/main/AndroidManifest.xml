@@ -13,6 +13,15 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
+        <activity
+            android:name=".LinkArchiveActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity>
         <activity android:name=".InsightsActivity" android:exported="false"/>
         <activity android:name=".KakaoUsageActivity" android:exported="false"/>
         <activity android:name=".CropActivity" android:exported="false"
