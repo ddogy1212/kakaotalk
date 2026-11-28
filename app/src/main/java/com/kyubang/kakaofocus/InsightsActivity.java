@@ -2,7 +2,6 @@ package com.kyubang.kakaofocus;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -11,8 +10,6 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -263,12 +260,7 @@ public final class InsightsActivity extends Activity {
             View background = new View(this);
             background.setBackground(round(Color.rgb(247, 235, 242), 6));
             bars.addView(background, slot);
-            LinearLayout progress = new LinearLayout(this);
-            progress.setOrientation(LinearLayout.HORIZONTAL);
-            // Small bars, same order as the weekly graph, with color intensity.
-            background.post(() -> {
-                // No dynamic mutation needed; this view intentionally remains a background.
-            });
+            // Small bars follow the same oldest-to-newest order as the weekly graph.
             background.setBackground(round(count == 0
                     ? Color.rgb(248, 237, 243)
                     : d == 0 ? PINK : Color.rgb(232, 149, 190), 6));
