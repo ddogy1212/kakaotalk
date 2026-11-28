@@ -12,6 +12,10 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Collections;
 
 /** Only notification metadata, never message bodies, is stored or matched. */
 public class NotificationWatcher extends NotificationListenerService {
@@ -54,6 +58,7 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onListenerDisconnected() {
         if (current == this) current = null;
         RoomStore.setConnected(this, false);
+        RoomInsightsStore.clearPreviews(this);
         WidgetUpdater.updateAll(this);
         try {
             requestRebind(new ComponentName(this, NotificationWatcher.class));
@@ -64,6 +69,7 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onDestroy() {
         if (current == this) current = null;
         RoomStore.setConnected(this, false);
+        RoomInsightsStore.clearPreviews(this);
         WidgetUpdater.updateAll(this);
         super.onDestroy();
     }
@@ -74,8 +80,22 @@ public class NotificationWatcher extends NotificationListenerService {
         if (tracing) RoomStore.traceDiagnostic(this, "① 수신", "카카오톡 알림 도착");
         try {
             rememberNotification(sbn);
+            Notification n = sbn.getNotification();
+            int matched = -1;
+            boolean individual = isEligible(sbn, false);
+            if (individual) {
+                String[] rooms = new String[RoomStore.ROOM_COUNT];
+                for (int i = 0; i < rooms.length; i++) rooms[i] = RoomStore.name(this, i);
+                matched = matchEntry(sbn, rooms, new int[RoomStore.ROOM_COUNT], false);
+                if (matched >= 0) {
+                    // Store only a salted fingerprint; not the body or raw notification ID.
+                    String fingerprint = RoomStore.conversationToken(this,
+                            "arrival|" + sbn.getKey() + "|" + n.when + "|"
+                                    + latestMessageSignature(n));
+                    RoomInsightsStore.notePosted(this, matched, fingerprint);
+                }
+            }
             if (tracing) {
-                Notification n = sbn.getNotification();
                 if (n == null || n.extras == null) {
                     RoomStore.traceDiagnostic(this, "② 식별", "알림 정보 없음");
                 } else {
@@ -85,11 +105,6 @@ public class NotificationWatcher extends NotificationListenerService {
                     RoomStore.traceDiagnostic(this, "② 식별",
                             (identity.isEmpty() ? "대화별 ID 미제공" : "대화별 ID 확인됨")
                             + " / 방 이름 후보 " + candidates.size() + "개");
-                    String[] rooms = new String[RoomStore.ROOM_COUNT];
-                    int[] testCounts = new int[RoomStore.ROOM_COUNT];
-                    for (int i = 0; i < rooms.length; i++) rooms[i] = RoomStore.name(this, i);
-                    int matched = matchEntry(sbn, rooms, testCounts,
-                            (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0);
                     RoomStore.traceDiagnostic(this, "③ 매칭",
                             matched >= 0 ? "등록된 톡방 " + (matched + 1) + "번 일치"
                                     : "일치 없음 · 톡방 이름 또는 직접 연결 확인 필요");
@@ -122,18 +137,33 @@ public class NotificationWatcher extends NotificationListenerService {
         }
         int[] counts = new int[RoomStore.ROOM_COUNT];
         String[] rooms = new String[RoomStore.ROOM_COUNT];
-        for (int i = 0; i < rooms.length; i++) rooms[i] = RoomStore.name(this, i);
+        @SuppressWarnings("unchecked")
+        List<String>[] previews = new List[RoomStore.ROOM_COUNT];
+        for (int i = 0; i < rooms.length; i++) {
+            rooms[i] = RoomStore.name(this, i);
+            previews[i] = new ArrayList<>();
+        }
         if (active != null) {
-            for (StatusBarNotification sbn : active) {
-                if (!isEligible(sbn, false)) continue;
+            List<StatusBarNotification> individuals = new ArrayList<>();
+            for (StatusBarNotification sbn : active)
+                if (isEligible(sbn, false)) individuals.add(sbn);
+            // Latest posts first; show a short extractive digest, not AI-generated text.
+            Collections.sort(individuals,
+                    (a, b) -> Long.compare(b.getPostTime(), a.getPostTime()));
+            for (StatusBarNotification sbn : individuals) {
                 try {
                     rememberNotification(sbn);
-                    matchEntry(sbn, rooms, counts, false);
+                    int room = matchEntry(sbn, rooms, counts, false);
+                    if (room >= 0 && RoomInsightsStore.previewsEnabled(this)) {
+                        List<String> lines = previewLines(sbn.getNotification());
+                        for (String line : lines)
+                            if (previews[room].size() < 3 && !previews[room].contains(line))
+                                previews[room].add(line);
+                    }
                 } catch (RuntimeException ignored) {
-                    // A single bad notification must not hide all Kakao group chats.
+                    // A single malformed Kakao notification must not block other rooms.
                 }
             }
-            // Only fall back to summary notifications for rooms with no child match.
             for (StatusBarNotification sbn : active) {
                 if (!isEligible(sbn, true)) continue;
                 try {
@@ -141,9 +171,50 @@ public class NotificationWatcher extends NotificationListenerService {
                 } catch (RuntimeException ignored) {}
             }
         }
+        RoomInsightsStore.replaceActivePreviews(this, previews);
         RoomStore.saveCounts(this, counts);
         RoomStore.setConnected(this, true);
         WidgetUpdater.updateAll(this);
+    }
+
+    /** Only extracts text from notifications currently present in Android's shade. */
+    private static List<String> previewLines(Notification notification) {
+        List<String> result = new ArrayList<>();
+        if (notification == null || notification.extras == null) return result;
+        Bundle extras = notification.extras;
+        Parcelable[] bundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES);
+        if (bundles != null && bundles.length > 0) {
+            try {
+                List<Notification.MessagingStyle.Message> messages =
+                        Notification.MessagingStyle.Message.getMessagesFromBundleArray(bundles);
+                for (int i = messages.size() - 1; i >= 0 && result.size() < 3; i--) {
+                    Notification.MessagingStyle.Message m = messages.get(i);
+                    if (m == null || m.getText() == null) continue;
+                    String text = RoomInsightsStore.cleanPreview(m.getText().toString());
+                    if (text.isEmpty()) continue;
+                    String sender = m.getSender() == null ? "" : m.getSender().toString();
+                    sender = RoomInsightsStore.cleanPreview(sender);
+                    String line = sender.isEmpty() ? text : sender + " · " + text;
+                    if (!result.contains(line)) result.add(line);
+                }
+            } catch (RuntimeException ignored) {
+                // KakaoTalk may use a different notification style.
+            }
+        }
+        if (result.isEmpty()) {
+            CharSequence content = extras.getCharSequence(Notification.EXTRA_TEXT);
+            if (content == null) content = extras.getCharSequence(Notification.EXTRA_BIG_TEXT);
+            if (content != null) {
+                String line = RoomInsightsStore.cleanPreview(content.toString());
+                if (!line.isEmpty()) result.add(line);
+            }
+        }
+        return result;
+    }
+
+    private static String latestMessageSignature(Notification n) {
+        List<String> lines = previewLines(n);
+        return lines.isEmpty() ? "" : lines.get(0);
     }
 
     private static boolean isEligible(StatusBarNotification sbn, boolean summary) {
