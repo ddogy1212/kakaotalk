@@ -70,12 +70,39 @@ public class NotificationWatcher extends NotificationListenerService {
 
     @Override public void onNotificationPosted(StatusBarNotification sbn) {
         if (sbn == null || !KAKAO_PACKAGE.equals(sbn.getPackageName())) return;
+        boolean tracing = RoomStore.isDiagnosticActive(this);
+        if (tracing) RoomStore.traceDiagnostic(this, "① 수신", "카카오톡 알림 도착");
         try {
             rememberNotification(sbn);
-        } catch (RuntimeException ignored) {
+            if (tracing) {
+                Notification n = sbn.getNotification();
+                if (n == null || n.extras == null) {
+                    RoomStore.traceDiagnostic(this, "② 식별", "알림 정보 없음");
+                } else {
+                    ShortcutInfo shortcut = conversationShortcut(sbn);
+                    String identity = rawIdentity(sbn, shortcut);
+                    LinkedHashSet<String> candidates = potentialRoomNames(sbn, shortcut);
+                    RoomStore.traceDiagnostic(this, "② 식별",
+                            (identity.isEmpty() ? "대화별 ID 미제공" : "대화별 ID 확인됨")
+                            + " / 방 이름 후보 " + candidates.size() + "개");
+                    String[] rooms = new String[RoomStore.ROOM_COUNT];
+                    int[] testCounts = new int[RoomStore.ROOM_COUNT];
+                    for (int i = 0; i < rooms.length; i++) rooms[i] = RoomStore.name(this, i);
+                    int matched = matchEntry(sbn, rooms, testCounts,
+                            (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0);
+                    RoomStore.traceDiagnostic(this, "③ 매칭",
+                            matched >= 0 ? "등록된 톡방 " + (matched + 1) + "번 일치"
+                                    : "일치 없음 · 톡방 이름 또는 직접 연결 확인 필요");
+                }
+            }
+        } catch (RuntimeException broken) {
+            if (tracing) RoomStore.traceDiagnostic(this, "오류", "알림 메타데이터 처리 실패");
             // A malformed notification must not disconnect the whole listener.
         }
         refreshSnapshot();
+        if (tracing) RoomStore.traceDiagnostic(this, "④ 갱신",
+                isConnected() ? "위젯 갱신 요청 완료 (표시 여부 별도)"
+                        : "알림 서비스 연결 확인 필요");
     }
 
     @Override public void onNotificationRemoved(StatusBarNotification sbn) {
@@ -207,8 +234,8 @@ public class NotificationWatcher extends NotificationListenerService {
         RoomStore.rememberNotificationMetadata(this, note);
     }
 
-    private void matchEntry(StatusBarNotification sbn, String[] rooms,
-                            int[] counts, boolean summaryOnly) {
+    private int matchEntry(StatusBarNotification sbn, String[] rooms,
+                           int[] counts, boolean summaryOnly) {
         Notification n = sbn.getNotification();
         ShortcutInfo shortcut = conversationShortcut(sbn);
         LinkedHashSet<String> candidates = potentialRoomNames(sbn, shortcut);
@@ -226,8 +253,9 @@ public class NotificationWatcher extends NotificationListenerService {
             if (!match) continue;
             counts[i] = Math.min(999, counts[i] + estimateCount(n.extras));
             RoomStore.noteMessageAt(this, i, sbn.getPostTime());
-            break;
+            return i;
         }
+        return -1;
     }
 
     private static boolean isGeneric(String title) {
