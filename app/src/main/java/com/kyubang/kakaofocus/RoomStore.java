@@ -256,6 +256,128 @@ final class RoomStore {
                 .apply();
     }
 
+
+    /** 0 = x0/x1/x2; 1 = 0/1/2. Default preserves zero-count behavior. */
+    static int countFormat(Context c) {
+        return clamp(prefs(c).getInt("count_format", 0), 0, 1);
+    }
+
+    static boolean showNotificationTime(Context c) {
+        return prefs(c).getBoolean("show_notification_time", true);
+    }
+
+    static String formattedCount(int count, int format) {
+        return (format == 1 ? "" : "x") + Math.max(0, count);
+    }
+
+    static String formattedCount(Context c, int count) {
+        return formattedCount(count, countFormat(c));
+    }
+
+    static void saveCountPresentation(Context c, int format, boolean showTime) {
+        prefs(c).edit().putInt("count_format", clamp(format, 0, 1))
+                .putBoolean("show_notification_time", showTime).apply();
+    }
+
+    /** Three fully editable, named local design presets (no room content). */
+    static final class Preset {
+        final String name;
+        final int[] design;
+        Preset(String name, int[] design) { this.name = name; this.design = design; }
+    }
+
+    static void savePreset(Context c, int slot, String title, int[] design) {
+        if (slot < 0 || slot >= 3 || design == null || design.length != 10)
+            throw new IllegalArgumentException("잘못된 프리셋 정보");
+        String name = (title == null ? "" : title.trim());
+        if (name.isEmpty()) name = "디자인 " + (slot + 1);
+        if (name.length() > 20) name = name.substring(0, 20);
+        JSONArray values = new JSONArray();
+        for (int value : design) values.put(value);
+        org.json.JSONObject object = new org.json.JSONObject();
+        try {
+            object.put("name", name);
+            object.put("values", values);
+            prefs(c).edit().putString("design_preset_" + slot, object.toString()).apply();
+        } catch (org.json.JSONException err) {
+            throw new IllegalArgumentException("프리셋 저장 실패", err);
+        }
+    }
+
+    static Preset loadPreset(Context c, int slot) {
+        if (slot < 0 || slot >= 3) return null;
+        String raw = prefs(c).getString("design_preset_" + slot, "");
+        if (raw.isEmpty()) return null;
+        try {
+            org.json.JSONObject object = new org.json.JSONObject(raw);
+            JSONArray values = object.getJSONArray("values");
+            if (values.length() != 10) return null;
+            int[] design = new int[10];
+            for (int i = 0; i < design.length; i++) design[i] = values.getInt(i);
+            if (design[0] < 0 || design[0] > 2 || design[1] < 0 || design[1] > 2
+                    || design[2] < 7 || design[2] > 18 || design[3] < 6 || design[3] > 16
+                    || design[4] < 4 || design[4] > 12 || design[5] < 6 || design[5] > 26
+                    || design[6] < 2 || design[6] > 30 || design[7] < 2 || design[7] > 32
+                    || design[8] < 0 || design[8] > 1 || design[9] < 0 || design[9] > 1)
+                return null;
+            return new Preset(object.optString("name", "디자인 " + (slot + 1)), design);
+        } catch (org.json.JSONException | IllegalArgumentException invalid) {
+            return null;
+        }
+    }
+
+    /** A short-lived, body-free trace: turns itself off after 15 minutes. */
+    static void startDiagnostic(Context c) {
+        prefs(c).edit().putLong("diag_started", System.currentTimeMillis())
+                .putString("diag_trace", "[]").apply();
+    }
+
+    static void stopDiagnostic(Context c) {
+        prefs(c).edit().remove("diag_started").apply();
+    }
+
+    static boolean isDiagnosticActive(Context c) {
+        long start = prefs(c).getLong("diag_started", 0L);
+        long age = System.currentTimeMillis() - start;
+        return start > 0 && age >= 0 && age < 15L * 60L * 1000L;
+    }
+
+    static void traceDiagnostic(Context c, String stage, String detail) {
+        if (!isDiagnosticActive(c)) return;
+        try {
+            JSONArray old = new JSONArray(prefs(c).getString("diag_trace", "[]"));
+            JSONArray recent = new JSONArray();
+            org.json.JSONObject event = new org.json.JSONObject();
+            event.put("at", System.currentTimeMillis());
+            event.put("stage", stage);
+            event.put("detail", detail);
+            recent.put(event);
+            for (int i = 0; i < Math.min(39, old.length()); i++) {
+                org.json.JSONObject earlier = old.optJSONObject(i);
+                if (earlier != null) recent.put(earlier);
+            }
+            prefs(c).edit().putString("diag_trace", recent.toString()).apply();
+        } catch (org.json.JSONException | RuntimeException ignored) {}
+    }
+
+    static List<String> diagnosticEvents(Context c) {
+        List<String> result = new ArrayList<>();
+        try {
+            JSONArray arr = new JSONArray(prefs(c).getString("diag_trace", "[]"));
+            java.text.SimpleDateFormat clock = new java.text.SimpleDateFormat(
+                    "HH:mm:ss", java.util.Locale.KOREA);
+            for (int i = 0; i < Math.min(40, arr.length()); i++) {
+                org.json.JSONObject event = arr.optJSONObject(i);
+                if (event == null) continue;
+                long at = event.optLong("at", 0);
+                String when = at > 0 ? clock.format(new java.util.Date(at)) : "--:--";
+                result.add(when + " · " + event.optString("stage", "")
+                        + " · " + event.optString("detail", ""));
+            }
+        } catch (org.json.JSONException ignored) {}
+        return result;
+    }
+
     static void saveRooms(Context c, String[] rooms) {
         SharedPreferences.Editor editor = prefs(c).edit();
         for (int i = 0; i < ROOM_COUNT; i++) {
