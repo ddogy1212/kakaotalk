@@ -12,44 +12,7 @@ import android.view.accessibility.AccessibilityEvent;
  * does not request window text, read messages, or inspect UI content.
  */
 public final class KakaoPauseAccessibility extends AccessibilityService {
-    private static KakaoPauseAccessibility connected;
-    private static final long VISIT_MS = 10_000L;
-    private long visitEnd = 0L;
-    private String visitToken = "", visitLabel = "";
-    private final Handler visitHandler = new Handler(Looper.getMainLooper());
-    private final Runnable visitExpiry = () -> endVisit(true);
     private long lastRedirectElapsed = 0L;
-
-    static boolean visitReady(android.content.Context c) {
-        return connected != null && PauseState.accessibilityEnabled(c)
-                && connected.visitEnd == 0L;
-    }
-
-    static boolean beginVisit(android.content.Context c, String token, String label) {
-        if (!visitReady(c) || token.isEmpty()
-                || !token.equals(MiniChatStore.token(c))
-                || !label.equals(MiniChatStore.label(c))) return false;
-        KakaoPauseAccessibility s = connected;
-        s.visitToken = token;
-        s.visitLabel = label;
-        s.visitEnd = SystemClock.elapsedRealtime() + VISIT_MS;
-        s.visitHandler.postDelayed(s.visitExpiry, VISIT_MS);
-        return true;
-    }
-
-    static void cancelVisit() {
-        if (connected != null) connected.endVisit(false);
-    }
-
-    private void endVisit(boolean goHome) {
-        if (visitEnd == 0L) return;
-        visitEnd = 0L;
-        visitToken = "";
-        visitLabel = "";
-        visitHandler.removeCallbacks(visitExpiry);
-        // No force-stop, task deletion, or extension of the existing pause timer.
-        if (goHome) performGlobalAction(GLOBAL_ACTION_HOME);
-    }
     private final Handler countdownHandler = new Handler(Looper.getMainLooper());
     private SharedPreferences pausePrefs;
 
@@ -80,7 +43,6 @@ public final class KakaoPauseAccessibility extends AccessibilityService {
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
-        connected = this;
         if (pausePrefs != null) pausePrefs.unregisterOnSharedPreferenceChangeListener(pauseListener);
         pausePrefs = PauseState.prefs(this);
         pausePrefs.registerOnSharedPreferenceChangeListener(pauseListener);
@@ -89,15 +51,7 @@ public final class KakaoPauseAccessibility extends AccessibilityService {
         restartCountdown();
     }
 
-    @Override public boolean onUnbind(android.content.Intent intent) {
-        endVisit(true);
-        if (connected == this) connected = null;
-        return super.onUnbind(intent);
-    }
-
     @Override public void onDestroy() {
-        endVisit(true);
-        if (connected == this) connected = null;
         if (pausePrefs != null) {
             pausePrefs.unregisterOnSharedPreferenceChangeListener(pauseListener);
             pausePrefs = null;
@@ -108,17 +62,6 @@ public final class KakaoPauseAccessibility extends AccessibilityService {
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
-        if (visitEnd != 0L) {
-            if (SystemClock.elapsedRealtime() >= visitEnd
-                    || !visitToken.equals(MiniChatStore.token(this))
-                    || !visitLabel.equals(MiniChatStore.label(this))) {
-                endVisit(true);
-                return;
-            }
-            // Only a user-requested, non-renewable 10-second visit may suspend
-            // the existing package-level pause. No window content is read.
-            return;
-        }
         if (!PauseState.active(this)) {
             if (PauseState.endAt(this) != 0L) PauseState.clearIfExpired(this);
             return;
@@ -135,5 +78,7 @@ public final class KakaoPauseAccessibility extends AccessibilityService {
         performGlobalAction(GLOBAL_ACTION_HOME);
     }
 
-    @Override public void onInterrupt() { endVisit(true); }
+    @Override public void onInterrupt() {
+        // Nothing to release; only package-change events are consumed.
+    }
 }
