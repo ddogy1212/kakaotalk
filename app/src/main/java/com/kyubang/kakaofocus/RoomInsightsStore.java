@@ -21,7 +21,7 @@ import java.util.Locale;
 final class RoomInsightsStore {
     private static final String PREF = "kakao_insights_private";
     private static final int DAYS_SAVED = 14;
-    private static final int PREVIEW_LIMIT = 3;
+    private static final int PREVIEW_LIMIT = 20;
     private RoomInsightsStore() {}
 
     private static SharedPreferences prefs(Context c) {
