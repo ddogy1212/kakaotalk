@@ -171,7 +171,7 @@ public class NotificationWatcher extends NotificationListenerService {
                     if (room >= 0 && RoomInsightsStore.previewsEnabled(this)) {
                         List<String> lines = previewLines(sbn.getNotification());
                         for (String line : lines)
-                            if (previews[room].size() < 3 && !previews[room].contains(line))
+                            if (previews[room].size() < 20 && !previews[room].contains(line))
                                 previews[room].add(line);
                     }
                 } catch (RuntimeException ignored) {
@@ -201,7 +201,7 @@ public class NotificationWatcher extends NotificationListenerService {
             try {
                 List<Notification.MessagingStyle.Message> messages =
                         Notification.MessagingStyle.Message.getMessagesFromBundleArray(bundles);
-                for (int i = messages.size() - 1; i >= 0 && result.size() < 3; i--) {
+                for (int i = messages.size() - 1; i >= 0 && result.size() < 20; i--) {
                     Notification.MessagingStyle.Message m = messages.get(i);
                     if (m == null || m.getText() == null) continue;
                     String text = RoomInsightsStore.cleanPreview(m.getText().toString());
