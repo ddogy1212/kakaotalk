@@ -35,7 +35,7 @@ final class BackupStore {
         JSONObject json = new JSONObject();
         try {
             json.put("format", "kakao-focus-backup");
-            json.put("schema", 3);
+            json.put("schema", 4);
             json.put("activeRooms", RoomStore.activeRooms(context));
             JSONArray rooms = new JSONArray();
             for (int i = 0; i < RoomStore.ROOM_COUNT; i++)
@@ -57,6 +57,23 @@ final class BackupStore {
             json.put("safeInsetDp", RoomStore.safeInsetDp(context));
             json.put("dayTopDp", RoomStore.dayTopDp(context));
             json.put("dayEndDp", RoomStore.dayEndDp(context));
+            json.put("countFormat", RoomStore.countFormat(context));
+            json.put("showNotificationTime", RoomStore.showNotificationTime(context));
+            JSONArray designs = new JSONArray();
+            for (int slot = 0; slot < 3; slot++) {
+                RoomStore.Preset preset = RoomStore.loadPreset(context, slot);
+                if (preset == null) {
+                    designs.put(JSONObject.NULL);
+                } else {
+                    JSONObject item = new JSONObject();
+                    item.put("name", preset.name);
+                    JSONArray values = new JSONArray();
+                    for (int field : preset.design) values.put(field);
+                    item.put("values", values);
+                    designs.put(item);
+                }
+            }
+            json.put("presets", designs);
         } catch (JSONException impossible) {
             throw new IOException("설정 파일을 준비하지 못했어.", impossible);
         }
@@ -117,11 +134,15 @@ final class BackupStore {
         String[] aliases = new String[RoomStore.ROOM_COUNT];
         final int active, theme, font, align, inset, minutes, mode, schema;
         final int chatSp, compactSp, daySp, insetDp, dayTopDp, dayEndDp;
+        final int countFormat;
+        final boolean showNotificationTime;
+        String[] presetNames = new String[3];
+        int[][] presetValues = new int[3][];
         try {
             JSONObject json = new JSONObject(new String(settings, StandardCharsets.UTF_8));
             schema = json.getInt("schema");
             if (!"kakao-focus-backup".equals(json.optString("format"))
-                    || (schema != 1 && schema != 2 && schema != 3))
+                    || (schema < 1 || schema > 4))
                 throw new IOException("지원하지 않는 백업 형식이야.");
             JSONArray array = json.getJSONArray("rooms");
             if (array.length() != RoomStore.ROOM_COUNT)
@@ -150,7 +171,7 @@ final class BackupStore {
             inset = json.getInt("inset");
             minutes = json.getInt("pauseMinutes");
             mode = json.getInt("pauseDisplayMode");
-            if (schema == 3) {
+            if (schema >= 3) {
                 chatSp = json.getInt("chatSp");
                 compactSp = json.getInt("compactSp");
                 daySp = json.getInt("daySp");
@@ -168,6 +189,40 @@ final class BackupStore {
                 insetDp = 10 + inset * 4;
                 dayTopDp = 9;
                 dayEndDp = 12;
+            }
+            if (schema >= 4) {
+                countFormat = json.getInt("countFormat");
+                showNotificationTime = json.getBoolean("showNotificationTime");
+                if (countFormat < 0 || countFormat > 1)
+                    throw new IOException("숫자 표시 설정이 올바르지 않아.");
+                JSONArray designs = json.getJSONArray("presets");
+                if (designs.length() != 3) throw new IOException("프리셋 수가 잘못됐어.");
+                for (int slot = 0; slot < 3; slot++) {
+                    JSONObject item = designs.optJSONObject(slot);
+                    if (item == null) continue;
+                    presetNames[slot] = item.getString("name");
+                    if (presetNames[slot].length() > 20)
+                        throw new IOException("프리셋 이름이 너무 길어.");
+                    JSONArray fields = item.getJSONArray("values");
+                    if (fields.length() != 10)
+                        throw new IOException("프리셋 값 개수가 잘못됐어.");
+                    int[] values = new int[10];
+                    for (int i = 0; i < 10; i++) values[i] = fields.getInt(i);
+                    if (values[0] < 0 || values[0] > 2 || values[1] < 0 || values[1] > 2
+                            || values[2] < 7 || values[2] > 18
+                            || values[3] < 6 || values[3] > 16
+                            || values[4] < 4 || values[4] > 12
+                            || values[5] < 6 || values[5] > 26
+                            || values[6] < 2 || values[6] > 30
+                            || values[7] < 2 || values[7] > 32
+                            || values[8] < 0 || values[8] > 1
+                            || values[9] < 0 || values[9] > 1)
+                        throw new IOException("프리셋 설정이 올바르지 않아.");
+                    presetValues[slot] = values;
+                }
+            } else {
+                countFormat = 0;
+                showNotificationTime = true;
             }
             if (active < 1 || active > 4 || theme < 0 || theme > 2
                     || font < 0 || font > 2 || align < 0 || align > 2
@@ -204,9 +259,19 @@ final class BackupStore {
         RoomStore.saveNicknames(context, aliases);
         RoomStore.saveActiveRooms(context, active);
         RoomStore.saveAppearance(context, theme, font, align, inset);
-        if (schema == 3) {
+        if (schema >= 3) {
             RoomStore.saveWidgetDesign(context, theme, align, chatSp, compactSp,
                     daySp, insetDp, dayTopDp, dayEndDp);
+        }
+        if (schema >= 4) {
+            RoomStore.saveCountPresentation(context, countFormat, showNotificationTime);
+            RoomStore.clearPresets(context);
+            for (int slot = 0; slot < 3; slot++)
+                if (presetValues[slot] != null)
+                    RoomStore.savePreset(context, slot, presetNames[slot], presetValues[slot]);
+        } else {
+            RoomStore.saveCountPresentation(context, 0, true);
+            RoomStore.clearPresets(context);
         }
         PauseState.saveDurationMinutes(context, minutes);
         PauseState.saveDisplayMode(context, mode);
