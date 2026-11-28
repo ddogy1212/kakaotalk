@@ -129,8 +129,9 @@ final class KakaoUsageReader {
                 int type = event.getEventType();
                 boolean kakao = KAKAO_PACKAGE.equals(event.getPackageName());
                 boolean opened = type == UsageEvents.Event.ACTIVITY_RESUMED;
-                boolean closed = type == UsageEvents.Event.ACTIVITY_PAUSED
-                        || type == UsageEvents.Event.ACTIVITY_STOPPED;
+                // STOPPED can arrive for an old activity after a new Kakao
+                // activity has resumed. It must not end the new session.
+                boolean closed = type == UsageEvents.Event.ACTIVITY_PAUSED;
                 boolean screenOff = type == UsageEvents.Event.SCREEN_NON_INTERACTIVE
                         || type == UsageEvents.Event.KEYGUARD_SHOWN
                         || type == UsageEvents.Event.DEVICE_SHUTDOWN;
