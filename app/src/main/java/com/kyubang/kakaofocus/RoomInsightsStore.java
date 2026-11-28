@@ -121,7 +121,7 @@ final class RoomInsightsStore {
     static String cleanPreview(String raw) {
         if (raw == null) return "";
         String value = raw.replaceAll("[\\p{Cntrl}\\s]+", " ").trim();
-        // No long message bodies, links or attachments are kept in this app.
+        // Truncate each locally displayed preview; never save entire conversations.
         if (value.length() > 120) value = value.substring(0, 120) + "…";
         return value;
     }
