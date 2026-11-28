@@ -11,9 +11,6 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.EditText;
-import android.widget.Toast;
-import android.text.InputType;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -35,8 +32,6 @@ public final class InsightsActivity extends Activity {
     private static final int BACKGROUND = Color.rgb(249, 247, 251);
     private static final int BLUSH = Color.rgb(251, 234, 242);
     private LinearLayout page;
-    // Session-only credential: never stored in preferences, backup or source code.
-    private static volatile String sessionHfToken = "";
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -329,12 +324,7 @@ public final class InsightsActivity extends Activity {
             addTop(card, extract, 12);
             extract.setOnClickListener(v -> showLocalSummary(name, snippets));
 
-            TextView cloud = text("✨ AI로 요약 (선택 · 외부 서비스)", 13, true, PINK);
-            cloud.setGravity(Gravity.CENTER);
-            cloud.setPadding(dp(8), dp(13), dp(8), dp(13));
-            cloud.setBackground(round(BLUSH, 12));
-            addTop(card, cloud, 8);
-            cloud.setOnClickListener(v -> showCloudSummaryDialog(name, snippets));
+
         }
         if (!RoomStore.boundConversation(this, index).isEmpty())
             addTop(card, text("연결 방식 · 단톡방 직접 연결", 10, false, PINK), 10);
@@ -447,78 +437,6 @@ public final class InsightsActivity extends Activity {
                 .setMessage("알림 문구 중 중요 키워드를 우선 보여줘. "
                         + "AI가 내용을 재구성한 요약은 아니야.\n\n" + body)
                 .setPositiveButton("확인", null).show();
-    }
-
-    private void showCloudSummaryDialog(String name, List<String> lines) {
-        if (sessionHfToken.isEmpty()) {
-            EditText keyInput = new EditText(this);
-            keyInput.setHint("Hugging Face 액세스 토큰 (이번 실행에만 유지)");
-            keyInput.setSingleLine(true);
-            keyInput.setInputType(InputType.TYPE_CLASS_TEXT
-                    | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-            LinearLayout holder = new LinearLayout(this);
-            holder.setOrientation(LinearLayout.VERTICAL);
-            holder.setPadding(dp(18), dp(8), dp(18), 0);
-            holder.addView(keyInput);
-            new AlertDialog.Builder(this).setTitle("외부 AI 요약 연결")
-                    .setMessage("Hugging Face 계정의 액세스 토큰이 필요해. "
-                            + "무료 크레딧 유무와 API 비용은 계정마다 달라. "
-                            + "앱은 결제를 대신 처리하지 않아.\n"
-                            + "토큰은 이번 앱 실행 중 메모리에만 보관하고 파일에는 저장하지 않아.")
-                    .setView(holder)
-                    .setNegativeButton("취소", null)
-                    .setPositiveButton("토큰 적용", (dialog, which) -> {
-                        String token = keyInput.getText().toString().trim();
-                        if (token.isEmpty()) {
-                            Toast.makeText(this, "토큰을 입력해 줘.", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        sessionHfToken = token;
-                        showCloudSummaryDialog(name, lines);
-                    }).show();
-            return;
-        }
-        StringBuilder preview = new StringBuilder();
-        for (String text : lines) {
-            if (preview.length() > 5200) break;
-            preview.append("• ").append(text).append("\n");
-        }
-        new AlertDialog.Builder(this).setTitle("외부 AI에 알림 전송")
-                .setMessage("아래 문구를 Hugging Face 추론 서버에 전송할까? "
-                        + "대화 상대의 메시지가 포함될 수 있어. "
-                        + "API 정책에 따라 처리·보관될 수 있으니 민감한 내용은 전송하지 마.\n\n"
-                        + preview)
-                .setNegativeButton("취소", null)
-                .setNeutralButton("토큰 초기화", (d, w) -> {sessionHfToken = "";})
-                .setPositiveButton("동의하고 AI 요약", (dialog, which) ->
-                        runCloudSummary(name, lines)).show();
-    }
-
-    private void runCloudSummary(String name, List<String> lines) {
-        final String token = sessionHfToken;
-        Toast.makeText(this, "선택한 알림 문구만 전송해 요약 중이야.", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                String result = HfSummaryClient.summarize(token, name, lines);
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    new AlertDialog.Builder(this)
-                            .setTitle(name + " · AI 요약")
-                            .setMessage("외부 AI가 제공한 결과야. 원문과 비교해 확인해 줘.\n\n"
-                                    + result).setPositiveButton("확인", null).show();
-                });
-            } catch (Exception failed) {
-                String error = failed.getMessage();
-                runOnUiThread(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    new AlertDialog.Builder(this).setTitle("AI 요약을 완료하지 못했어")
-                            .setMessage(error == null ? "API 연결을 확인해 줘." : error)
-                            .setPositiveButton("확인", null)
-                            .setNeutralButton("기기 내 정리 보기",
-                                    (d, w) -> showLocalSummary(name, lines)).show();
-                });
-            }
-        }, "hf-kakao-summary").start();
     }
 
     private void sectionTitle(String title, String eyebrow, int top) {
