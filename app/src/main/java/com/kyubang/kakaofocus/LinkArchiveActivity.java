@@ -66,6 +66,12 @@ public final class LinkArchiveActivity extends Activity {
         refresh(true);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        // Newly intercepted Kakao notifications can arrive while a browser is open.
+        if (list != null) refresh(true);
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
