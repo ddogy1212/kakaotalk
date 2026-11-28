@@ -389,6 +389,8 @@ final class RoomStore {
         for (int i = 0; i < ROOM_COUNT; i++) {
             String value = (rooms[i] == null ? "" : rooms[i].trim());
             if (!value.equals(name(c, i))) {
+                // Forget previous room's statistics and notification snippets.
+                RoomInsightsStore.clearRoom(c, i);
                 editor.putInt("count_" + i, 0);
                 editor.putLong("last_message_" + i, 0L);
                 // Never leak a previous room's alias when the tracked room changes.
