@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
     <queries>
         <package android:name="com.kakao.talk"/>
     </queries>
@@ -13,6 +14,7 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity android:name=".InsightsActivity" android:exported="false"/>
+        <activity android:name=".KakaoUsageActivity" android:exported="false"/>
         <activity android:name=".CropActivity" android:exported="false"
             android:screenOrientation="portrait"/>
         <activity
