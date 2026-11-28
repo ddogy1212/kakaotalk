@@ -87,12 +87,26 @@ public class NotificationWatcher extends NotificationListenerService {
                 String[] rooms = new String[RoomStore.ROOM_COUNT];
                 for (int i = 0; i < rooms.length; i++) rooms[i] = RoomStore.name(this, i);
                 matched = matchEntry(sbn, rooms, new int[RoomStore.ROOM_COUNT], false);
+                // Keep notifications for EVERY Kakao chat in the activity report,
+                // including rooms that weren't manually registered.
+                String fingerprint = RoomStore.conversationToken(this,
+                        "arrival|" + sbn.getKey() + "|" + n.when + "|"
+                                + latestMessageSignature(n));
                 if (matched >= 0) {
-                    // Store only a salted fingerprint; not the body or raw notification ID.
-                    String fingerprint = RoomStore.conversationToken(this,
-                            "arrival|" + sbn.getKey() + "|" + n.when + "|"
-                                    + latestMessageSignature(n));
                     RoomInsightsStore.notePosted(this, matched, fingerprint);
+                } else {
+                    ShortcutInfo shortcut = conversationShortcut(sbn);
+                    String raw = rawIdentity(sbn, shortcut);
+                    // Fallback grouping is generic if Kakao did not supply a unique ID.
+                    String token = RoomStore.conversationToken(this,
+                            raw.isEmpty() ? "unidentified_other" : raw);
+                    String conversation = value(n.extras, Notification.EXTRA_CONVERSATION_TITLE);
+                    if (conversation.isEmpty()) conversation = value(n.extras, HIDDEN_TITLE);
+                    if (conversation.isEmpty() && shortcut != null
+                            && shortcut.getShortLabel() != null)
+                        conversation = shortcut.getShortLabel().toString();
+                    if (conversation.isEmpty()) conversation = "이름 미제공 카톡 알림";
+                    OtherChatsStore.record(this, token, conversation, fingerprint);
                 }
             }
             if (tracing) {
