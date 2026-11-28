@@ -564,6 +564,8 @@ public final class MainActivity extends Activity {
     private void buildFocus() {
         addWithTop(focusPanel, text("⏳ 카톡 집중 차단", 20, true), 0);
         addWithTop(focusPanel, text("사진형 1×1 위젯을 누르면 지정한 시간 동안 카톡 화면을 홈으로 돌려보내.", 13, false), 8);
+        Button usage = addButton(focusPanel, "📈 카카오톡 사용 시간 · 7일 분석", true);
+        usage.setOnClickListener(v -> startActivity(new Intent(this, KakaoUsageActivity.class)));
 
         minutesLabel = text("", 18, true);
         minutesLabel.setTextColor(PINK);
