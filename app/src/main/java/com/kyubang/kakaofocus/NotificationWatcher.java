@@ -3,6 +3,7 @@ package com.kyubang.kakaofocus;
 import android.app.Notification;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ShortcutInfo;
 import android.os.Build;
 import android.os.Bundle;
