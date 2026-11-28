@@ -25,7 +25,8 @@ public final class MiniChatActivity extends Activity {
     private ScrollView scroll;
     private TextView status;
     private EditText draft;
-    private Button send;
+    private Button send, openRoom;
+    private TextView openHint;
     private String token,label,rendered="";
     private final Runnable ticker=new Runnable(){public void run(){
         if(locked()){finish();return;}
@@ -84,6 +85,21 @@ public final class MiniChatActivity extends Activity {
             Toast.makeText(this,"카톡에 답장 요청을 전달했어. 수신 확인은 불가해.",Toast.LENGTH_SHORT).show();
             if(MiniChatStore.autoClose(this))finish();else render();
         });
+        openRoom=new Button(this);
+        openRoom.setAllCaps(false);
+        openRoom.setText("톡방 바로가기 · 10초");
+        openRoom.setTextColor(pink);openRoom.setBackground(bg(0xff38323c,14));
+        LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(-1,dp(44));op.topMargin=dp(8);
+        panel.addView(openRoom,op);
+        openHint=text("",10,muted);openHint.setGravity(Gravity.CENTER);panel.addView(openHint);
+        openRoom.setOnClickListener(v->{
+            if(locked()||!NotificationWatcher.miniOpenRoom(this,token,label)){
+                Toast.makeText(this,"톡방 열기 권한이 없거나 만료됐어. 새 알림과 차단 서비스 연결을 확인해 줘.",Toast.LENGTH_LONG).show();
+                render();return;
+            }
+            Toast.makeText(this,"10초 후 홈으로 돌아가.",Toast.LENGTH_SHORT).show();
+            finish();
+        });
         TextView note=text("여러 문장은 줄바꿈으로 한 번에 보낼 수 있어.\n전송 요청은 실제 전달 확인과 다름",10,muted);note.setGravity(Gravity.CENTER);note.setPadding(0,dp(7),0,0);panel.addView(note);
         setContentView(panel);getWindow().setLayout((int)(getResources().getDisplayMetrics().widthPixels*MiniChatStore.width(this)/100f),-2);
         getWindow().setGravity(Gravity.CENTER);
@@ -99,6 +115,10 @@ public final class MiniChatActivity extends Activity {
         status.setText(!configured?"앱의 톡방 관리에서 미니 채팅을 연결해 줘.":!connected?"알림 접근 연결 필요":can?"답장 가능 알림 "+available+"개":"새 답장 가능 알림을 기다리는 중");
         draft.setEnabled(configured);
         send.setEnabled(can);send.setAlpha(can?1f:.45f);
+        boolean ready=configured&&KakaoPauseAccessibility.visitReady(this);
+        boolean canOpen=ready&&!locked()&&NotificationWatcher.miniHasOpen(this);
+        openRoom.setEnabled(canOpen);openRoom.setAlpha(canOpen?1f:.5f);
+        openHint.setText(!configured?"앱 안에서 톡방을 먼저 연결해 줘.":!ready?"집중 차단 접근성 서비스를 켜야 10초 후 종료할 수 있어.":canOpen?"연결된 톡방의 알림 바로가기 · 10초 후 홈":"새 톡방 알림이 필요해 (일반 카톡 실행은 하지 않아).");
         List<MiniChatStore.Line> lines=configured?MiniChatStore.lines():Collections.emptyList();
         StringBuilder fingerprint=new StringBuilder();for(MiniChatStore.Line l:lines)fingerprint.append(l.id).append('|');
         String fresh=fingerprint.toString();

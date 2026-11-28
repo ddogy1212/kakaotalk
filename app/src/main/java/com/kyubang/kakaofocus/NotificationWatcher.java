@@ -59,6 +59,7 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onListenerDisconnected() {
         if (current == this) current = null;
         RoomStore.setConnected(this, false);
+        clearMiniOpen();
         MiniChatStore.clear();
         MiniChatWidgetProvider.updateAll(this);
         RoomInsightsStore.clearPreviews(this);
@@ -72,6 +73,7 @@ public class NotificationWatcher extends NotificationListenerService {
     @Override public void onDestroy() {
         if (current == this) current = null;
         RoomStore.setConnected(this, false);
+        clearMiniOpen();
         MiniChatStore.clear();
         MiniChatWidgetProvider.updateAll(this);
         RoomInsightsStore.clearPreviews(this);
@@ -286,7 +288,82 @@ public class NotificationWatcher extends NotificationListenerService {
         }
         return found;
     }
+    // Cache only the selected conversation's notification TAP action, not its
+    // reply action. Never synthesize a generic launch intent or a chat ID.
+    private android.app.PendingIntent miniOpenAction;
+    private String miniOpenToken="",miniOpenLabel="";
+    private long miniOpenAt;
+    private static final long OPEN_CACHE_MS=30L*60L*1000L;
+
+    private void clearMiniOpen() {
+        miniOpenAction=null; miniOpenToken=""; miniOpenLabel=""; miniOpenAt=0L;
+    }
+    static void resetMiniOpen() {
+        NotificationWatcher w=current;
+        if(w!=null)w.clearMiniOpen();
+    }
+    private boolean safeOpen(android.app.PendingIntent a) {
+        return a!=null && KAKAO_PACKAGE.equals(a.getCreatorPackage())
+                && (Build.VERSION.SDK_INT<31 || a.isActivity());
+    }
+    private boolean sharedOpenAction(android.app.PendingIntent action,StatusBarNotification[] active,
+                                      String token,String label) {
+        if(active==null)return true;
+        for(StatusBarNotification s:active) {
+            if(s==null || !KAKAO_PACKAGE.equals(s.getPackageName()))continue;
+            Notification n=s.getNotification();
+            if(n==null || !action.equals(n.contentIntent))continue;
+            MiniTarget t=miniTarget(s);
+            if(t==null || !token.equals(t.token) || !label.equals(t.label))return true;
+        }
+        return false;
+    }
+    private void updateMiniOpen(StatusBarNotification[] active) {
+        String token=MiniChatStore.token(this),label=MiniChatStore.label(this);
+        if(token.isEmpty() || active==null) {clearMiniOpen();return;}
+        if(!token.equals(miniOpenToken)||!label.equals(miniOpenLabel)
+                || SystemClock.elapsedRealtime()-miniOpenAt>=OPEN_CACHE_MS)clearMiniOpen();
+        for(MiniTarget t:miniTargets(active)) {
+            if(token.equals(t.token)&&!label.equals(t.label)){clearMiniOpen();return;}
+        }
+        if(miniOpenAction!=null&&sharedOpenAction(miniOpenAction,active,token,label))clearMiniOpen();
+        for(MiniTarget t:selectedMini(active)) {
+            android.app.PendingIntent a=t.sbn.getNotification().contentIntent;
+            if(safeOpen(a)&&!sharedOpenAction(a,active,token,label)) {
+                miniOpenAction=a;miniOpenToken=token;miniOpenLabel=label;
+                miniOpenAt=SystemClock.elapsedRealtime();
+                return;
+            }
+        }
+    }
+    static boolean miniHasOpen(Context c) {
+        NotificationWatcher w=current;
+        if(w==null || !WidgetUpdater.hasAccess(c))return false;
+        try {
+            w.updateMiniOpen(w.getActiveNotifications());
+            return w.safeOpen(w.miniOpenAction);
+        }catch(RuntimeException e){w.clearMiniOpen();return false;}
+    }
+    static boolean miniOpenRoom(Context c,String token,String label) {
+        NotificationWatcher w=current;
+        if(w==null || token.isEmpty() || !token.equals(MiniChatStore.token(c))
+            || !label.equals(MiniChatStore.label(c)) || !miniHasOpen(c))return false;
+        android.app.KeyguardManager km=(android.app.KeyguardManager)c.getSystemService(Context.KEYGUARD_SERVICE);
+        if(km==null||km.isDeviceLocked()||km.isKeyguardLocked())return false;
+        if(!KakaoPauseAccessibility.beginVisit(c,token,label))return false;
+        try {
+            // Execute the notification's original tap operation unchanged.
+            w.miniOpenAction.send();
+            return true;
+        }catch(android.app.PendingIntent.CanceledException|RuntimeException e){
+            w.clearMiniOpen();
+            KakaoPauseAccessibility.cancelVisit();
+            return false;
+        }
+    }
+
     private void refreshMiniChat(StatusBarNotification[] active) {
+        try {updateMiniOpen(active);}catch(RuntimeException e){clearMiniOpen();}
         for(MiniTarget t:selectedMini(active)) {
             try {
                 Notification n=t.sbn.getNotification();

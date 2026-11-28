@@ -30,6 +30,8 @@ final class MiniChatStore {
     static String label(Context c) { return prefs(c).getString("label", ""); }
     static void bind(Context c, String token, String label) {
         clear();
+        NotificationWatcher.resetMiniOpen();
+        KakaoPauseAccessibility.cancelVisit();
         prefs(c).edit().putString("token", token).putString("label", label).apply();
     }
     static boolean autoClose(Context c) { return prefs(c).getBoolean("close", false); }
