@@ -12,6 +12,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.provider.MediaStore;
 import android.view.Gravity;
@@ -19,6 +21,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -59,7 +62,20 @@ public final class MainActivity extends Activity {
 
     // Draft changes affect previews only; persisted and pushed to widgets on Apply.
     private int draftTheme, draftAlign, draftChatSp, draftCompactSp, draftDaySp,
-            draftInsetDp, draftDayTopDp, draftDayEndDp;
+            draftInsetDp, draftDayTopDp, draftDayEndDp, draftCountFormat;
+    private boolean draftShowTime;
+    private Spinner themeDesignPicker, alignDesignPicker, formatDesignPicker, presetSlotPicker;
+    private CheckBox timeDesignToggle;
+    private EditText presetNameEdit;
+    private final SeekBar[] styleSliders = new SeekBar[6];
+    private TextView diagnosticsLog;
+    private final Handler diagnosticsHandler = new Handler(Looper.getMainLooper());
+    private final Runnable diagnosticsTicker = new Runnable() {
+        @Override public void run() {
+            updateDiagnosticsLog();
+            diagnosticsHandler.postDelayed(this, 1000);
+        }
+    };
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -213,6 +229,29 @@ public final class MainActivity extends Activity {
         attach.setOnClickListener(v -> showConversationBinder());
         Button detach = addButton(roomsPanel, "연결된 알림 해제", false);
         detach.setOnClickListener(v -> clearConversationBinding());
+
+        addWithTop(roomsPanel, text("🧪 실시간 카카오톡 알림 테스트", 16, true), 19);
+        addWithTop(roomsPanel, text(
+                "진단 시작 → 카카오톡으로 이동해 단톡 알림 받기 → 이 화면으로 돌아오면 "
+                + "수신·대화 식별·톡방 매칭·위젯 갱신 요청이 기록돼. 15분 뒤 자동 종료돼.",
+                12, false), 7);
+        Button startTest = addButton(roomsPanel, "▶ 알림 진단 시작 (이전 기록 초기화)", true);
+        startTest.setOnClickListener(v -> {
+            RoomStore.startDiagnostic(this);
+            updateDiagnosticsLog();
+            Toast.makeText(this, "진단 시작! 카카오톡에서 새 알림을 받아 봐.",
+                    Toast.LENGTH_LONG).show();
+        });
+        Button stopTest = addButton(roomsPanel, "■ 알림 진단 종료", false);
+        stopTest.setOnClickListener(v -> {
+            RoomStore.stopDiagnostic(this);
+            updateDiagnosticsLog();
+        });
+        diagnosticsLog = text("", 12, false);
+        diagnosticsLog.setPadding(dp(12), dp(12), dp(12), dp(12));
+        diagnosticsLog.setBackground(round(Color.rgb(255, 243, 249), 12));
+        addWithTop(roomsPanel, diagnosticsLog, 9);
+        updateDiagnosticsLog();
 
         addWithTop(roomsPanel, text("단톡방 감지가 안 된다면", 16, true), 18);
         Button diagnostics = addButton(roomsPanel, "🔍 카톡 알림 제목 진단", false);
