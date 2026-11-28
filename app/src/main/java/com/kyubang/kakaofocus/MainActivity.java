@@ -141,6 +141,8 @@ public final class MainActivity extends Activity {
     private void buildRooms() {
         addWithTop(roomsPanel, text("📨 중요한 톡방 관리", 20, true), 0);
         addWithTop(roomsPanel, text("카카오톡 알림이 켜져 있어야 해. 방해금지 모드는 유지해도 돼.", 13, false), 7);
+        Button museum = addButton(roomsPanel, "🔗 카톡 링크 박물관 · 자동 수집·검색·즐겨찾기", true);
+        museum.setOnClickListener(v -> startActivity(new Intent(this, LinkArchiveActivity.class)));
         Button insights = addButton(roomsPanel, "📊 알림 인사이트 · 통계 & 메시지 요약", true);
         insights.setOnClickListener(v -> startActivity(new Intent(this, InsightsActivity.class)));
         Button permission = addButton(roomsPanel, "알림 접근 권한 열기", false);
