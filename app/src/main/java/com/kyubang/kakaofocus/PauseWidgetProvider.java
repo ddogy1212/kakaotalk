@@ -8,7 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.os.SystemClock;
+import java.util.Locale;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -20,6 +20,22 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
     @Override public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager,
                                                     int widgetId, android.os.Bundle options) {
         updateAll(context);
+    }
+
+    // A TextView cannot continue counting past zero if Android delays an alarm.
+    static String formatRemaining(long remaining) {
+        long safe = Math.max(0L, remaining);
+        long seconds = safe / 1000L + (safe % 1000L == 0 ? 0 : 1);
+        return String.format(Locale.ROOT, "%02d:%02d", seconds / 60L, seconds % 60L);
+    }
+
+    static void updateCountdown(Context context, long remaining) {
+        AppWidgetManager manager = AppWidgetManager.getInstance(context);
+        int[] ids = manager.getAppWidgetIds(new ComponentName(context, PauseWidgetProvider.class));
+        if (ids == null || ids.length == 0) return;
+        RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_pause_safe);
+        views.setTextViewText(R.id.pause_countdown, formatRemaining(remaining));
+        manager.partiallyUpdateAppWidget(ids, views);
     }
 
     static void updateAll(Context context) {
@@ -40,7 +56,7 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
         int displayMode = hasPhoto ? PauseState.displayMode(context) : 0;
 
         for (int id : ids) {
-            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_pause);
+            RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_pause_safe);
             views.setInt(R.id.pause_root, "setBackgroundResource", bg);
             views.setViewVisibility(R.id.pause_photo, hasPhoto ? View.VISIBLE : View.GONE);
             if (hasPhoto) views.setImageViewBitmap(R.id.pause_photo, bitmap);
@@ -68,10 +84,7 @@ public final class PauseWidgetProvider extends AppWidgetProvider {
                         android.util.TypedValue.COMPLEX_UNIT_SP,
                         displayMode == 1 ? 9f : 14f);
                 if (displayMode != 2) {
-                    views.setChronometer(R.id.pause_countdown,
-                            SystemClock.elapsedRealtime() + remaining,
-                            null, true);
-                    views.setChronometerCountDown(R.id.pause_countdown, true);
+                    views.setTextViewText(R.id.pause_countdown, formatRemaining(remaining));
                 }
                 Intent details = new Intent(context, MainActivity.class);
                 target = PendingIntent.getActivity(context, 510, details,

@@ -33,7 +33,7 @@ final class PauseState {
 
     private PauseState() {}
 
-    private static SharedPreferences prefs(Context context) {
+    static SharedPreferences prefs(Context context) {
         return context.getApplicationContext()
                 .getSharedPreferences("kakao_ten_minute_pause", Context.MODE_PRIVATE);
     }
@@ -87,7 +87,13 @@ final class PauseState {
     }
 
     static void clearIfExpired(Context context) {
-        if (active(context)) return;
+        if (active(context)) {
+            // An early alarm (e.g. after a clock change) must not lose the expiry.
+            scheduleExpiry(context);
+            return;
+        }
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (am != null) am.cancel(expirationIntent(context));
         prefs(context).edit().remove("pause_end_wall").apply();
         PauseWidgetProvider.updateAll(context);
     }
