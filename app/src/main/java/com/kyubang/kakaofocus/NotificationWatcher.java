@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Collections;
 
-/** Only notification metadata, never message bodies, is stored or matched. */
+/** Notification metadata tracking with optional local capture of only web URLs. */
 public class NotificationWatcher extends NotificationListenerService {
     private static final String KAKAO_PACKAGE = "com.kakao.talk";
     private static final String HIDDEN_TITLE = "android.hiddenConversationTitle";
@@ -81,6 +81,17 @@ public class NotificationWatcher extends NotificationListenerService {
         try {
             rememberNotification(sbn);
             Notification n = sbn.getNotification();
+            if (n != null && n.extras != null
+                    && (n.flags & Notification.FLAG_GROUP_SUMMARY) == 0) {
+                try (LinkArchiveStore archive = new LinkArchiveStore(this)) {
+                    String source = value(n.extras, Notification.EXTRA_CONVERSATION_TITLE);
+                    if (source.isEmpty()) source = value(n.extras, HIDDEN_TITLE);
+                    if (source.isEmpty()) source = value(n.extras, Notification.EXTRA_TITLE);
+                    archive.saveNotification(n, source);
+                } catch (RuntimeException ignored) {
+                    // Link collection is best-effort, never interrupts notification tracking.
+                }
+            }
             int matched = -1;
             boolean individual = isEligible(sbn, false);
             if (individual) {
@@ -167,6 +178,15 @@ public class NotificationWatcher extends NotificationListenerService {
             for (StatusBarNotification sbn : individuals) {
                 try {
                     rememberNotification(sbn);
+                    // Also scan already-visible Kakao notifications when the listener reconnects.
+                    // UNIQUE URLs prevent duplicate bookmarks after each refresh.
+                    try (LinkArchiveStore archive = new LinkArchiveStore(this)) {
+                        Notification n = sbn.getNotification();
+                        String source = value(n.extras, Notification.EXTRA_CONVERSATION_TITLE);
+                        if (source.isEmpty()) source = value(n.extras, HIDDEN_TITLE);
+                        if (source.isEmpty()) source = value(n.extras, Notification.EXTRA_TITLE);
+                        archive.saveNotification(n, source);
+                    } catch (RuntimeException ignored) {}
                     int room = matchEntry(sbn, rooms, counts, false);
                     if (room >= 0 && RoomInsightsStore.previewsEnabled(this)) {
                         List<String> lines = previewLines(sbn.getNotification());
