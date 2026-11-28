@@ -11,6 +11,9 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.EditText;
+import android.widget.Toast;
+import android.text.InputType;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -32,6 +35,8 @@ public final class InsightsActivity extends Activity {
     private static final int BACKGROUND = Color.rgb(249, 247, 251);
     private static final int BLUSH = Color.rgb(251, 234, 242);
     private LinearLayout page;
+    // Session-only credential: never stored in preferences, backup or source code.
+    private static volatile String sessionHfToken = "";
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -68,7 +73,8 @@ public final class InsightsActivity extends Activity {
             registered++;
             addRoomCard(i);
         }
-        if (registered == 0) {
+        addOtherChats();
+        if (registered == 0 && OtherChatsStore.list(this).isEmpty()) {
             LinearLayout blank = card(Color.WHITE, 20, 18);
             blank.addView(text("아직 등록된 톡방이 없어", 16, true, INK));
             addTop(blank, text("톡방 관리에서 감지할 방 이름을 등록하면 여기서 분석할 수 있어.",
@@ -128,6 +134,8 @@ public final class InsightsActivity extends Activity {
             today += RoomInsightsStore.daily(this, i, 0);
             week += RoomInsightsStore.total(this, i, 7);
         }
+        today += OtherChatsStore.total(this, 0);
+        for (int d = 0; d < 7; d++) week += OtherChatsStore.total(this, d);
         LinearLayout numbers = new LinearLayout(this);
         numbers.setGravity(Gravity.CENTER_VERTICAL);
         addTop(banner, numbers, 13);
@@ -165,6 +173,7 @@ public final class InsightsActivity extends Activity {
             for (int i = 0; i < RoomStore.activeRooms(this); i++)
                 if (!RoomStore.name(this, i).isEmpty())
                     dayTotals[d] += RoomInsightsStore.daily(this, i, ago);
+            dayTotals[d] += OtherChatsStore.total(this, ago);
             maximum = Math.max(maximum, dayTotals[d]);
         }
         chartCard.addView(text("카카오톡 알림 수신 횟수 · 톡방 합계", 11, false, MUTED));
@@ -210,6 +219,7 @@ public final class InsightsActivity extends Activity {
         for (int i = 0; i < RoomStore.activeRooms(this); i++)
             if (!RoomStore.name(this, i).isEmpty())
                 total += RoomInsightsStore.total(this, i, days);
+        for (int d = 0; d < days && d < 7; d++) total += OtherChatsStore.total(this, d);
         return total;
     }
 
@@ -291,7 +301,7 @@ public final class InsightsActivity extends Activity {
                     : "알림은 있지만 카카오톡이 문구를 제공하지 않았어.",
                     12, false, MUTED), 11);
         } else {
-            for (String line : snippets) {
+            for (String line : snippets.subList(0, Math.min(3, snippets.size()))) {
                 LinearLayout bubble = new LinearLayout(this);
                 bubble.setGravity(Gravity.TOP);
                 bubble.setPadding(dp(11), dp(10), dp(11), dp(10));
@@ -310,6 +320,21 @@ public final class InsightsActivity extends Activity {
                 item.setEllipsize(TextUtils.TruncateAt.END);
                 bubble.addView(item, new LinearLayout.LayoutParams(0, -2, 1f));
             }
+        }
+        if (!snippets.isEmpty() && RoomInsightsStore.previewsEnabled(this)) {
+            TextView extract = text("📝 기기 내 핵심 정리", 13, true, INK);
+            extract.setGravity(Gravity.CENTER);
+            extract.setPadding(dp(8), dp(13), dp(8), dp(13));
+            extract.setBackground(round(Color.rgb(246, 232, 240), 12));
+            addTop(card, extract, 12);
+            extract.setOnClickListener(v -> showLocalSummary(name, snippets));
+
+            TextView cloud = text("✨ AI로 요약 (선택 · 외부 서비스)", 13, true, PINK);
+            cloud.setGravity(Gravity.CENTER);
+            cloud.setPadding(dp(8), dp(13), dp(8), dp(13));
+            cloud.setBackground(round(BLUSH, 12));
+            addTop(card, cloud, 8);
+            cloud.setOnClickListener(v -> showCloudSummaryDialog(name, snippets));
         }
         if (!RoomStore.boundConversation(this, index).isEmpty())
             addTop(card, text("연결 방식 · 단톡방 직접 연결", 10, false, PINK), 10);
@@ -352,8 +377,148 @@ public final class InsightsActivity extends Activity {
                         .setNegativeButton("취소", null)
                         .setPositiveButton("기록 삭제", (dialog, which) -> {
                             RoomInsightsStore.clearAll(this);
+                            OtherChatsStore.clearAll(this);
                             render();
                         }).show());
+    }
+
+    private void addOtherChats() {
+        List<OtherChatsStore.Chat> others = OtherChatsStore.list(this);
+        sectionTitle("그 외 카톡방 알림", "ALL KAKAO ROOMS", 24);
+        LinearLayout group = card(Color.WHITE, 20, 17);
+        addTop(page, group, 12);
+        group.addView(text("등록하지 않은 카톡방도 자동 집계해. "
+                + "대화별 식별자가 없으면 이름 미제공 알림으로 묶일 수 있어.",
+                11, false, MUTED));
+        if (others.isEmpty()) {
+            addTop(group, text("아직 새로 감지한 다른 카톡방 알림이 없어.",
+                    12, false, MUTED), 12);
+            return;
+        }
+        int shown = 0;
+        for (OtherChatsStore.Chat chat : others) {
+            if (shown++ >= 15) break;
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            addTop(group, row, 13);
+            LinearLayout left = new LinearLayout(this);
+            left.setOrientation(LinearLayout.VERTICAL);
+            row.addView(left, new LinearLayout.LayoutParams(0, -2, 1f));
+            TextView label = text(chat.label, 14, true, INK);
+            label.setSingleLine(true);
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            left.addView(label);
+            addTop(left, text("오늘 " + chat.days[0] + "회 · 최근 7일 "
+                    + chat.total() + "회", 11, false, MUTED), 4);
+            TextView total = text(chat.total() + "회", 13, true, PINK);
+            total.setPadding(dp(9), dp(6), dp(9), dp(6));
+            total.setBackground(round(BLUSH, 11));
+            row.addView(total);
+        }
+        if (others.size() > 15)
+            addTop(group, text("상위 15개만 표시 · 나머지는 전체 통계에 합산",
+                    11, false, MUTED), 13);
+    }
+
+    private void showLocalSummary(String name, List<String> lines) {
+        StringBuilder body = new StringBuilder();
+        String[] keywords = {"제출","마감","시험","수행","과제","숙제",
+                "준비물","공지","내일","모임","시간","일정"};
+        java.util.ArrayList<String> priority = new java.util.ArrayList<>();
+        java.util.ArrayList<String> other = new java.util.ArrayList<>();
+        for (String raw : lines) {
+            String line = RoomInsightsStore.cleanPreview(raw);
+            if (line.isEmpty()) continue;
+            boolean important = false;
+            for (String key : keywords) if (line.contains(key)) {important = true; break;}
+            if (important) priority.add(line); else other.add(line);
+        }
+        int count=0;
+        for (String line : priority) {
+            if (count++ >= 4) break;
+            body.append("• ").append(line).append("\n\n");
+        }
+        for (String line : other) {
+            if (count++ >= 4) break;
+            body.append("• ").append(line).append("\n\n");
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(name + " · 기기 내 핵심 정리")
+                .setMessage("알림 문구 중 중요 키워드를 우선 보여줘. "
+                        + "AI가 내용을 재구성한 요약은 아니야.\n\n" + body)
+                .setPositiveButton("확인", null).show();
+    }
+
+    private void showCloudSummaryDialog(String name, List<String> lines) {
+        if (sessionHfToken.isEmpty()) {
+            EditText keyInput = new EditText(this);
+            keyInput.setHint("Hugging Face 액세스 토큰 (이번 실행에만 유지)");
+            keyInput.setSingleLine(true);
+            keyInput.setInputType(InputType.TYPE_CLASS_TEXT
+                    | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            LinearLayout holder = new LinearLayout(this);
+            holder.setOrientation(LinearLayout.VERTICAL);
+            holder.setPadding(dp(18), dp(8), dp(18), 0);
+            holder.addView(keyInput);
+            new AlertDialog.Builder(this).setTitle("외부 AI 요약 연결")
+                    .setMessage("Hugging Face 계정의 액세스 토큰이 필요해. "
+                            + "무료 크레딧 유무와 API 비용은 계정마다 달라. "
+                            + "앱은 결제를 대신 처리하지 않아.\n"
+                            + "토큰은 이번 앱 실행 중 메모리에만 보관하고 파일에는 저장하지 않아.")
+                    .setView(holder)
+                    .setNegativeButton("취소", null)
+                    .setPositiveButton("토큰 적용", (dialog, which) -> {
+                        String token = keyInput.getText().toString().trim();
+                        if (token.isEmpty()) {
+                            Toast.makeText(this, "토큰을 입력해 줘.", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        sessionHfToken = token;
+                        showCloudSummaryDialog(name, lines);
+                    }).show();
+            return;
+        }
+        StringBuilder preview = new StringBuilder();
+        for (String text : lines) {
+            if (preview.length() > 5200) break;
+            preview.append("• ").append(text).append("\n");
+        }
+        new AlertDialog.Builder(this).setTitle("외부 AI에 알림 전송")
+                .setMessage("아래 문구를 Hugging Face 추론 서버에 전송할까? "
+                        + "대화 상대의 메시지가 포함될 수 있어. "
+                        + "API 정책에 따라 처리·보관될 수 있으니 민감한 내용은 전송하지 마.\n\n"
+                        + preview)
+                .setNegativeButton("취소", null)
+                .setNeutralButton("토큰 초기화", (d, w) -> {sessionHfToken = "";})
+                .setPositiveButton("동의하고 AI 요약", (dialog, which) ->
+                        runCloudSummary(name, lines)).show();
+    }
+
+    private void runCloudSummary(String name, List<String> lines) {
+        final String token = sessionHfToken;
+        Toast.makeText(this, "선택한 알림 문구만 전송해 요약 중이야.", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                String result = HfSummaryClient.summarize(token, name, lines);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    new AlertDialog.Builder(this)
+                            .setTitle(name + " · AI 요약")
+                            .setMessage("외부 AI가 제공한 결과야. 원문과 비교해 확인해 줘.\n\n"
+                                    + result).setPositiveButton("확인", null).show();
+                });
+            } catch (Exception failed) {
+                String error = failed.getMessage();
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    new AlertDialog.Builder(this).setTitle("AI 요약을 완료하지 못했어")
+                            .setMessage(error == null ? "API 연결을 확인해 줘." : error)
+                            .setPositiveButton("확인", null)
+                            .setNeutralButton("기기 내 정리 보기",
+                                    (d, w) -> showLocalSummary(name, lines)).show();
+                });
+            }
+        }, "hf-kakao-summary").start();
     }
 
     private void sectionTitle(String title, String eyebrow, int top) {
