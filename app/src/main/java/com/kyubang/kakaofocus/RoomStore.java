@@ -304,6 +304,12 @@ final class RoomStore {
         }
     }
 
+    static void clearPresets(Context c) {
+        SharedPreferences.Editor editor = prefs(c).edit();
+        for (int slot = 0; slot < 3; slot++) editor.remove("design_preset_" + slot);
+        editor.apply();
+    }
+
     static Preset loadPreset(Context c, int slot) {
         if (slot < 0 || slot >= 3) return null;
         String raw = prefs(c).getString("design_preset_" + slot, "");
