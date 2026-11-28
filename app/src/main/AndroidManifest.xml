@@ -12,6 +12,7 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
+        <activity android:name=".InsightsActivity" android:exported="false"/>
         <activity android:name=".CropActivity" android:exported="false"
             android:screenOrientation="portrait"/>
         <activity
