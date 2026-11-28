@@ -270,6 +270,8 @@ public final class MainActivity extends Activity {
         draftInsetDp = RoomStore.safeInsetDp(this);
         draftDayTopDp = RoomStore.dayTopDp(this);
         draftDayEndDp = RoomStore.dayEndDp(this);
+        draftCountFormat = RoomStore.countFormat(this);
+        draftShowTime = RoomStore.showNotificationTime(this);
 
         addWithTop(widgetsPanel, text("🎨 실시간 위젯 편집기", 20, true), 0);
         addWithTop(widgetsPanel, text(
@@ -319,9 +321,9 @@ public final class MainActivity extends Activity {
         previewPair.addView(compactPreviewFrame, smallPreview);
 
         addWithTop(widgetsPanel, text("위젯 테마", 14, true), 19);
-        Spinner themePicker = spinner(new String[]{"다크", "화이트", "반투명"}, draftTheme);
-        addWithTop(widgetsPanel, themePicker, 4);
-        themePicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        themeDesignPicker = spinner(new String[]{"다크", "화이트", "반투명"}, draftTheme);
+        addWithTop(widgetsPanel, themeDesignPicker, 4);
+        themeDesignPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> adapter, View selected,
                                                   int position, long id) {
                 draftTheme = position;
@@ -331,9 +333,9 @@ public final class MainActivity extends Activity {
         });
 
         addWithTop(widgetsPanel, text("글씨 정렬", 14, true), 12);
-        Spinner alignmentPicker = spinner(new String[]{"왼쪽", "가운데", "오른쪽"}, draftAlign);
-        addWithTop(widgetsPanel, alignmentPicker, 4);
-        alignmentPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        alignDesignPicker = spinner(new String[]{"왼쪽", "가운데", "오른쪽"}, draftAlign);
+        addWithTop(widgetsPanel, alignDesignPicker, 4);
+        alignDesignPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> adapter, View selected,
                                                   int position, long id) {
                 draftAlign = position;
@@ -342,18 +344,85 @@ public final class MainActivity extends Activity {
             @Override public void onNothingSelected(AdapterView<?> adapter) {}
         });
 
-        addDesignSlider(widgetsPanel, "2×1 톡방 글씨 크기", 7, 18, draftChatSp,
+        styleSliders[0] = addDesignSlider(widgetsPanel, "2×1 톡방 글씨 크기", 7, 18, draftChatSp,
                 value -> draftChatSp = value);
-        addDesignSlider(widgetsPanel, "1×1 톡방 글씨 크기", 6, 16, draftCompactSp,
+        styleSliders[1] = addDesignSlider(widgetsPanel, "1×1 톡방 글씨 크기", 6, 16, draftCompactSp,
                 value -> draftCompactSp = value);
-        addDesignSlider(widgetsPanel, "수능 D-day 글씨 크기", 4, 12, draftDaySp,
+        styleSliders[2] = addDesignSlider(widgetsPanel, "수능 D-day 글씨 크기", 4, 12, draftDaySp,
                 value -> draftDaySp = value);
-        addDesignSlider(widgetsPanel, "둥근 테두리 보호 여백", 6, 26, draftInsetDp,
+        styleSliders[3] = addDesignSlider(widgetsPanel, "둥근 테두리 보호 여백", 6, 26, draftInsetDp,
                 value -> draftInsetDp = value);
-        addDesignSlider(widgetsPanel, "수능 D-day 위쪽 여백", 2, 30, draftDayTopDp,
+        styleSliders[4] = addDesignSlider(widgetsPanel, "수능 D-day 위쪽 여백", 2, 30, draftDayTopDp,
                 value -> draftDayTopDp = value);
-        addDesignSlider(widgetsPanel, "수능 D-day 오른쪽 여백", 2, 32, draftDayEndDp,
+        styleSliders[5] = addDesignSlider(widgetsPanel, "수능 D-day 오른쪽 여백", 2, 32, draftDayEndDp,
                 value -> draftDayEndDp = value);
+
+        addWithTop(widgetsPanel, text("🔢 알림 개수 표기", 16, true), 22);
+        formatDesignPicker = spinner(
+                new String[]{"x0 / x1 / x2 (기본)", "0 / 1 / 2 (숫자만)"}, draftCountFormat);
+        addWithTop(widgetsPanel, formatDesignPicker, 5);
+        formatDesignPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view,
+                                                  int position, long id) {
+                draftCountFormat = position;
+                renderPreview();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        timeDesignToggle = new CheckBox(this);
+        timeDesignToggle.setText("마지막 알림 시각 표시");
+        timeDesignToggle.setTextColor(INK);
+        timeDesignToggle.setChecked(draftShowTime);
+        timeDesignToggle.setButtonTintList(ColorStateList.valueOf(PINK));
+        addWithTop(widgetsPanel, timeDesignToggle, 7);
+        timeDesignToggle.setOnCheckedChangeListener((button, checked) -> {
+            draftShowTime = checked;
+            renderPreview();
+        });
+
+        addWithTop(widgetsPanel, text("💾 디자인 프리셋 3개", 16, true), 23);
+        addWithTop(widgetsPanel, text(
+                "이름을 붙여 저장하고 불러올 수 있어. 불러올 때는 미리보기만 바뀌고, "
+                + "실제 위젯 변경은 맨 아래 '적용'을 눌러야 해.",
+                12, false), 6);
+        presetSlotPicker = spinner(new String[]{"프리셋 1", "프리셋 2", "프리셋 3"}, 0);
+        addWithTop(widgetsPanel, presetSlotPicker, 6);
+        presetNameEdit = new EditText(this);
+        presetNameEdit.setSingleLine(true);
+        presetNameEdit.setHint("이름: 예) 잠금화면 / 투명 / 다크");
+        presetNameEdit.setTextColor(INK);
+        presetNameEdit.setTextSize(14);
+        presetNameEdit.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(20)});
+        addWithTop(widgetsPanel, presetNameEdit, 5);
+        presetSlotPicker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view,
+                                                  int position, long id) {
+                RoomStore.Preset stored = RoomStore.loadPreset(MainActivity.this, position);
+                presetNameEdit.setText(stored == null ? "" : stored.name);
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        Button savePreset = addButton(widgetsPanel, "이 미리보기 디자인을 프리셋에 저장", false);
+        savePreset.setOnClickListener(v -> {
+            int slot = presetSlotPicker.getSelectedItemPosition();
+            RoomStore.savePreset(this, slot, presetNameEdit.getText().toString(), currentDraftDesign());
+            RoomStore.Preset stored = RoomStore.loadPreset(this, slot);
+            if (stored != null) presetNameEdit.setText(stored.name);
+            Toast.makeText(this, "프리셋 " + (slot + 1) + "번 저장!", Toast.LENGTH_SHORT).show();
+        });
+        Button loadPreset = addButton(widgetsPanel, "선택한 프리셋 미리보기로 불러오기", false);
+        loadPreset.setOnClickListener(v -> {
+            RoomStore.Preset stored = RoomStore.loadPreset(
+                    this, presetSlotPicker.getSelectedItemPosition());
+            if (stored == null) {
+                Toast.makeText(this, "이 슬롯에는 저장된 디자인이 없어.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            setDraftDesign(stored.design);
+            Toast.makeText(this, "미리보기에 불러왔어. 적용 전까지 위젯은 그대로야.",
+                    Toast.LENGTH_SHORT).show();
+        });
 
         addWithTop(widgetsPanel, text(
                 "굿락의 실제 위젯 크기는 다를 수 있어. 글씨를 너무 키우면 일부가 잘릴 수 있으니 미리보기와 잠금화면을 모두 확인해 줘.",
@@ -363,6 +432,7 @@ public final class MainActivity extends Activity {
         apply.setOnClickListener(v -> {
             RoomStore.saveWidgetDesign(this, draftTheme, draftAlign, draftChatSp,
                     draftCompactSp, draftDaySp, draftInsetDp, draftDayTopDp, draftDayEndDp);
+            RoomStore.saveCountPresentation(this, draftCountFormat, draftShowTime);
             WidgetUpdater.updateAll(this);
             PauseWidgetProvider.updateAll(this);
             refreshUI();
@@ -383,8 +453,8 @@ public final class MainActivity extends Activity {
                 11, false), 8);
     }
 
-    private void addDesignSlider(LinearLayout panel, String label, int minimum, int maximum,
-                                 int initial, IntConsumer onValueChanged) {
+    private SeekBar addDesignSlider(LinearLayout panel, String label, int minimum, int maximum,
+                                    int initial, IntConsumer onValueChanged) {
         LinearLayout heading = new LinearLayout(this);
         heading.setOrientation(LinearLayout.HORIZONTAL);
         heading.setGravity(Gravity.CENTER_VERTICAL);
@@ -425,6 +495,7 @@ public final class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar bar) {}
             @Override public void onStopTrackingTouch(SeekBar bar) {}
         });
+        return slider;
     }
 
     private void buildFocus() {
