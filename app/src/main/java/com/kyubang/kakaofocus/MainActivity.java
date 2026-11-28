@@ -498,6 +498,67 @@ public final class MainActivity extends Activity {
         return slider;
     }
 
+    private int[] currentDraftDesign() {
+        return new int[]{draftTheme, draftAlign, draftChatSp, draftCompactSp,
+                draftDaySp, draftInsetDp, draftDayTopDp, draftDayEndDp,
+                draftCountFormat, draftShowTime ? 1 : 0};
+    }
+
+    private void setDraftDesign(int[] values) {
+        if (values == null || values.length != 10) return;
+        draftTheme = values[0];
+        draftAlign = values[1];
+        draftChatSp = values[2];
+        draftCompactSp = values[3];
+        draftDaySp = values[4];
+        draftInsetDp = values[5];
+        draftDayTopDp = values[6];
+        draftDayEndDp = values[7];
+        draftCountFormat = values[8];
+        draftShowTime = values[9] != 0;
+        themeDesignPicker.setSelection(draftTheme);
+        alignDesignPicker.setSelection(draftAlign);
+        int[] sliderMin = {7, 6, 4, 6, 2, 2};
+        int[] sliderValue = {draftChatSp, draftCompactSp, draftDaySp,
+                draftInsetDp, draftDayTopDp, draftDayEndDp};
+        for (int i = 0; i < styleSliders.length; i++)
+            if (styleSliders[i] != null)
+                styleSliders[i].setProgress(sliderValue[i] - sliderMin[i]);
+        formatDesignPicker.setSelection(draftCountFormat);
+        timeDesignToggle.setChecked(draftShowTime);
+        renderPreview();
+    }
+
+    private String previewCountAndTime(int roomIndex) {
+        String count = RoomStore.formattedCount(RoomStore.count(this, roomIndex),
+                draftCountFormat);
+        String time = WidgetUpdater.timeLabel(RoomStore.lastMessageAt(this, roomIndex));
+        return count + (!draftShowTime || time.isEmpty() ? "" : " · " + time);
+    }
+
+    private void updateDiagnosticsLog() {
+        if (diagnosticsLog == null) return;
+        List<String> events = RoomStore.diagnosticEvents(this);
+        boolean[] stages = new boolean[4];
+        for (String event : events) {
+            for (int i = 0; i < stages.length; i++)
+                if (event.contains(new String[]{"① 수신", "② 식별",
+                        "③ 매칭", "④ 갱신"}[i])) stages[i] = true;
+        }
+        StringBuilder text = new StringBuilder(
+                RoomStore.isDiagnosticActive(this)
+                        ? "● 감지 테스트 진행 중 · 15분 내 자동 종료\\n"
+                        : "○ 테스트 중지 · 아래는 마지막 기록\\n");
+        String[] names = {"① 알림 수신", "② 대화 식별", "③ 톡방 매칭", "④ 위젯 갱신 요청"};
+        for (int i = 0; i < 4; i++)
+            text.append(stages[i] ? "✓ " : "· ").append(names[i]).append("\\n");
+        text.append("\\n최근 기록 (새 항목이 위에 표시):\\n");
+        if (events.isEmpty()) text.append("아직 기록이 없어. 테스트를 시작하고 카톡 알림을 받아 줘.");
+        else for (int i = 0; i < Math.min(18, events.size()); i++)
+            text.append(events.get(i)).append("\\n");
+        diagnosticsLog.setText(text.toString().replace("\\n", "\n"));
+    }
+
     private void buildFocus() {
         addWithTop(focusPanel, text("⏳ 카톡 집중 차단", 20, true), 0);
         addWithTop(focusPanel, text("사진형 1×1 위젯을 누르면 지정한 시간 동안 카톡 화면을 홈으로 돌려보내.", 13, false), 8);
@@ -665,7 +726,14 @@ public final class MainActivity extends Activity {
         ExamDay.schedule(this);
         NotificationWatcher.reconnectIfNeeded(this);
         PauseState.scheduleExpiry(this);
+        diagnosticsHandler.removeCallbacks(diagnosticsTicker);
+        diagnosticsHandler.postDelayed(diagnosticsTicker, 1000);
         refreshUI();
+    }
+
+    @Override protected void onPause() {
+        diagnosticsHandler.removeCallbacks(diagnosticsTicker);
+        super.onPause();
     }
 
     private void refreshUI() {
@@ -729,7 +797,7 @@ public final class MainActivity extends Activity {
                     : RoomStore.displayName(this, i);
             int count = RoomStore.count(this, i);
             String status = missing ? "" : !hasAccess ? "권한 필요"
-                    : !connected ? "연결 확인" : WidgetUpdater.countAndTime(this, i);
+                    : !connected ? "연결 확인" : previewCountAndTime(i);
             String lineText = name + (status.isEmpty() ? "" : " " + status);
             int color = missing ? muted : (count > 0 && hasAccess && connected ? accent : ink);
 
@@ -743,8 +811,8 @@ public final class MainActivity extends Activity {
 
             String smallStatus = missing ? "" : !hasAccess ? "권한"
                     : !connected ? "연결" : active <= 2
-                    ? WidgetUpdater.countAndTime(this, i)
-                    : count > 0 ? "×" + count : "x0";
+                    ? previewCountAndTime(i)
+                    : RoomStore.formattedCount(count, draftCountFormat);
             TextView smallLine = text(name + (smallStatus.isEmpty() ? "" : " " + smallStatus),
                     draftCompactSp, false);
             smallLine.setTextColor(color);
